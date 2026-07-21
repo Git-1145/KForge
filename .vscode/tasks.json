@@ -1,0 +1,34 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "G++ 编译当前cpp",
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "command": "g++",
+            "args": [
+                "${file}",
+                "-o",
+                "${fileDirname}\\${fileBasenameNoExtension}.exe",
+                "-std=c++17",
+                "-Wall",
+                "-I", "${workspaceFolder}"
+            ],
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "G++ 编译并自动运行",
+            "dependsOn": ["G++ 编译当前cpp"],
+            "type": "shell",
+            "windows": {
+                "command": "${fileDirname}\\${fileBasenameNoExtension}.exe"
+            },
+            "presentation": {
+                "reveal": "always"
+            }
+        }
+    ]
+}
