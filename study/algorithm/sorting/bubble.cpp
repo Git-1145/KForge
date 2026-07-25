@@ -1,4 +1,4 @@
-#include"study/definitions.hpp"
+#include"definitions.hpp"
 using namespace std;
 int main()
 {
@@ -33,6 +33,6 @@ int main()
     for(int i=0;i<n;i++)
         kout << arr[i] << " ";
     timer.printTimer("bubble sort");
-    kf::pause();
+    kf::cli::pause();
     return 0;
 }
