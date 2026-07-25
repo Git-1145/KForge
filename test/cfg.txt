@@ -1,0 +1,18 @@
+[kf]={
+    [bob]={
+        [age]=(1,2,3)
+        [msg]=("  hello world  ", "测试文本")
+    }
+    [alice]={
+        [msg]=(1145154, 666, 777)
+    }
+    [sort]={
+        [title]="aaa",
+        [options]=
+        (
+            1.bob,
+            2.alice,
+            3.kfk
+        )
+    }
+}
