@@ -140,27 +140,23 @@ namespace KF::UTI
                 return trim(res);//中括号两边空白无效
             }
             std::string readQuote(const std::string& str, size_t& pos)
-{
-    if (pos >= str.size() || str[pos] != '"')
-        throw std::runtime_error(
-            "parse error at pos:" + std::to_string(pos) +
-            ", expected '\"'");
-
-    ++pos;
-    const size_t begin = pos;
-
-    while (pos < str.size() && str[pos] != '"')
-        ++pos;
-
-    if (pos >= str.size())
-        throw std::runtime_error(
-            "parse error at pos:" + std::to_string(begin) +
-            ", missing closing quote");
-
-    std::string result = str.substr(begin, pos - begin);
-    ++pos;
-    return result;
-}
+            {
+                if (pos >= str.size() || str[pos] != '"')
+                    throw std::runtime_error(
+                    "parse error at pos:" + std::to_string(pos) +
+                    ", expected '\"'");
+                ++pos;
+                const size_t begin = pos;
+                while (pos < str.size() && str[pos] != '"')
+                    ++pos;
+                if (pos >= str.size())
+                    throw std::runtime_error(
+                    "parse error at pos:" + std::to_string(begin) +
+                    ", missing closing quote");
+                std::string result = str.substr(begin, pos - begin);
+                ++pos;
+                return result;
+            }
             node parse(std::string& str,size_t& pos)
             {
                 skipWs(str,pos);
