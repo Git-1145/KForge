@@ -1,13 +1,13 @@
 [kf]={
     [bob]={
-        [age]=(1,2,3)
+        [age]=(1,2,3),
         [msg]=("  hello world  ", "测试文本")
-    }
+    },
     [alice]={
-        [msg]=(1145154, 666, 777)
-    }
+        [msg]=("fuck","your mother")
+    },
     [sort]={
-        [title]="aaa",
+        [title]="fuckyu",
         [options]=
         (
             1.bob,

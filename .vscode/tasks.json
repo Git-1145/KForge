@@ -2,33 +2,43 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "G++ 编译当前cpp",
+            "label": "build current + utility all",
             "type": "shell",
+            "command": "g++",
+            "args": [
+                "${file}",
+                "./utility/*.cpp",
+                "-o",
+                "${file}.exe",
+                "-std=c++17",
+                "-Wall",
+                "-Wextra"
+            ],
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
-            "command": "g++",
-            "args": [
-                "${file}",
-                "-o",
-                "${fileDirname}\\${fileBasenameNoExtension}.exe",
-                "-std=c++17",
-                "-Wall",
-                "-I", "${workspaceFolder}"
-            ],
-            "problemMatcher": "$gcc"
+            "problemMatcher": {
+                "owner": "gcc",
+                "fileLocation": "absolute",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            },
+            "detail": "编译当前cpp,自动链接utility下全部cpp文件"
         },
         {
-            "label": "G++ 编译并自动运行",
-            "dependsOn": ["G++ 编译当前cpp"],
+            "label": "run app.exe",
             "type": "shell",
-            "windows": {
-                "command": "${fileDirname}\\${fileBasenameNoExtension}.exe"
-            },
-            "presentation": {
-                "reveal": "always"
-            }
+            "command": "./app.exe",
+            "args": [],
+            "dependsOn": "build current + utility all",
+            "group": "test"
         }
     ]
 }

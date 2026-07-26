@@ -1,34 +1,93 @@
-#include<utility/kf.hpp>
+#include "kf.hpp"
 namespace KF::UTI
 {
     namespace FIO
     {
-        using nodePtr = std::unique_ptr<node>;
-        using objMap = std::unordered_map<std::string, nodePtr>;
-        struct node//节点
-        {
-            //基础数值
-            objMap obj;//{} 孩子有哪些
-            std::vector<node> arr;//()数组 node退化成variant<ll,str> 
-            valueType type=valueType::Empty;
-            std::variant<std::string, long long, double> val;//值
-            //构造
-            node()=default;
-            node(node&&)=default;
-            node& operator= (node&&)=default;
-            //查询类型
-            bool is_object() const { return !obj.empty(); }
-            bool is_array()  const { return !arr.empty(); }
-            bool is_string() const { return type == valueType::Str; }
-            bool is_ll() const { return type == valueType::I64;}
-            bool is_db() const { return type == valueType::F64;}
-            
-        };
+        
         nodeView nodeView::operator[](size_t index)
         {
+            if (ptr == nullptr)
+                throw std::runtime_error("cannot index null node");
+            //std::cerr << "DEBUG operator[]: ptr=" << ptr << " is_array=" << ptr->is_array() 
+            //      << " arr.size=" << ptr->arr.size() << " index=" << index << "\n";
+            if (!ptr->is_array())
+            {
+            //    std::cerr << "DEBUG operator[] abort: not array\n";
+                throw std::runtime_error("Unexpected index: current node is not an array");
+            }
             if (index >= ptr->arr.size())
-                throw std::runtime_error("array out of range, size:" + std::to_string(ptr->arr.size())+ " idx:" + std::to_string(index));
+            {
+            //    std::cerr << "DEBUG operator[] abort: out of range\n";
+                throw std::runtime_error(
+                "array out of range, size:" + std::to_string(ptr->arr.size()) +
+                " idx:" + std::to_string(index));
+            }
+            //std::cerr << "DEBUG operator[] success: returning element\n";
             return nodeView(&ptr->arr[index]);
+        }
+        nodeView nodeView::get(const std::string& key)
+        {
+            auto it = ptr->obj.find(key);
+            if (it == ptr->obj.end())
+                throw std::runtime_error("key not exist: " + key);
+            return nodeView(it->second.get());
+        }
+        namespace
+        {
+            std::string trim(const std::string& str);
+        }
+        nodeView nodeView::value(const std::string& path)
+        {
+            nodeView current = *this;
+            size_t pos = 0;
+            const std::string& str = path;
+            while (pos < str.size())
+            {
+                size_t left = str.find('[', pos),
+                       right = str.find(']', left + 1);
+                if (left == std::string::npos) break;//没有项
+                if (right == std::string::npos) throw std::runtime_error("path syntax error, missing ']'");
+                std::string key = trim(str.substr(left + 1, right - left - 1));
+                pos = right + 1;
+
+                bool isNum = true;
+                bool dot = false;
+                size_t idx = 0;
+                if (!key.empty() && (key[0] == '-' || key[0] == '+'))
+                    idx = 1;
+                int digitCount = 0;
+                for (; idx < key.size(); idx++) //键可能包含符号或数字
+                {
+                    if (std::isdigit(static_cast<unsigned char>(key[idx])))
+                    {
+                        digitCount++;
+                        continue;
+                    }
+                    if (key[idx] == '.' && !dot)
+                    {
+                        dot = true;
+                        continue;
+                    }
+                    isNum = false;
+                    break;
+                }
+                if (digitCount == 0)
+                    isNum = false;
+                if (isNum && !key.empty())
+                {
+                    size_t idx = static_cast<size_t>(std::stoll(key));
+                //    std::cerr << "DEBUG: numeric key='" << key << "' idx=" << idx << " current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
+                    current = current[idx];//如果是数字 则进入其列表的第idx项
+                //    std::cerr << "DEBUG: after numeric current assignment, current.ptr=" << current.ptr << " current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
+                }
+                else
+                {
+                //    std::cerr << "DEBUG: string key='" << key << "' current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
+                    current = current.get(key);//如果是字符串 则进入其子节点 named key        
+                //    std::cerr << "DEBUG: after string current assignment, current.ptr=" << current.ptr << " current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
+                }
+            }
+            return current;
         }
         namespace//文件读取 别乱用
         {
@@ -37,6 +96,8 @@ namespace KF::UTI
             std::string text;
             std::string trim(const std::string& str)//跳过两端空白符号
             {
+                if (str.empty())
+                    return {};
                 auto isWhitespace=[](char c)
                 {
                     return (c==' '||c=='\n'||c=='\r'||c=='\t');
@@ -47,7 +108,7 @@ namespace KF::UTI
                     begin++;
                 while(end>begin && isWhitespace(str[end]))
                     end--;
-                return str.substr(begin,end-begin);
+                return str.substr(begin,end-begin+1);
             }
             void skipWs(std::string& str,size_t& pos)//跳过空白符号
             {
@@ -59,39 +120,52 @@ namespace KF::UTI
                     pos++;
                 //感觉和trim很像 考虑一下
             }
-            std::string readBracket(std::string& str,size_t pos)//读取[]里的内容 键
+            std::string readBracket(std::string& str,size_t& pos)//读取[]里的内容 键
             {
                 skipWs(str,pos);
                 if(pos>=str.size() || str[pos]!='[')
-                    return "";
+                    throw std::runtime_error(
+                "parse error at pos:" + std::to_string(pos) +
+                ", expected '['");
                 pos++;//从[后面开始读
                 size_t tmp=pos;//第一个字
                 while(pos<str.size()&&str[pos]!=']')
+                {
                     pos++;
+                    if(pos >= str.size())//没找到]
+                    return "";
+                }
                 std::string res=str.substr(tmp,pos-tmp);
                 pos++;//到]结束
                 return trim(res);//中括号两边空白无效
             }
-            std::string readQuote(std::string& str,size_t pos)//读取""里的内容
-            {
-                //因为是字符串 所以不跳过空白
-                pos++;//从第一个"后面开始
-                size_t tmp=pos;
-                while(pos<str.size()&&str[pos]!='"')
-                    pos++;
-                std::string res = str.substr(tmp, pos - tmp);
-                ++pos;
-                return res;
-                /*
-                return str.substr(tmp,(pos++)-tmp);
-                这样写可能有bug 以后测试一下
-                */
-            }
+            std::string readQuote(const std::string& str, size_t& pos)
+{
+    if (pos >= str.size() || str[pos] != '"')
+        throw std::runtime_error(
+            "parse error at pos:" + std::to_string(pos) +
+            ", expected '\"'");
+
+    ++pos;
+    const size_t begin = pos;
+
+    while (pos < str.size() && str[pos] != '"')
+        ++pos;
+
+    if (pos >= str.size())
+        throw std::runtime_error(
+            "parse error at pos:" + std::to_string(begin) +
+            ", missing closing quote");
+
+    std::string result = str.substr(begin, pos - begin);
+    ++pos;
+    return result;
+}
             node parse(std::string& str,size_t& pos)
             {
                 skipWs(str,pos);
                 node Node;
-                if(str[pos]='{')//读到对象
+                if (pos < str.size() && str[pos] == '{') //读到对象
                 {
                     pos++;
                     skipWs(str,pos);
@@ -133,48 +207,68 @@ namespace KF::UTI
                 }
                 else//除了符号外的任何字符 abc 114514之类的
                 {
-                    size_t tmp=pos;
+                    size_t tmp = pos;
                     while (pos < str.size()
-                    && str[pos] != ',' && str[pos] != '}' && str[pos] != ')'
-                    && str[pos] != '[' && str[pos] != '=')
+                        && str[pos] != ',' && str[pos] != '}' && str[pos] != ')'
+                        && str[pos] != '[' && str[pos] != '=')
                     {
                         pos++;
                     }
+                    if (pos == tmp)
+                        throw std::runtime_error("parse error at pos:"+std::to_string(pos)+" unexpected character '" + std::string(1, str[pos]) + "'");
                     //读取数字
-                    std::string rawStr=trim(str.substr(tmp,pos-tmp));
-                    bool isNum=true,dot=false;
-                    size_t idx=0;
-                    if(rawStr[0]='-')//允许负数 不支持多个前缀
+                    std::string rawStr = trim(str.substr(tmp, pos - tmp));
+                    if (rawStr.empty())
+                        throw std::runtime_error("parse error: empty token");
+                    bool isNum = true, dot = false;
+                    size_t idx = 0;
+                    if (!rawStr.empty() && rawStr[0] == '-')//允许负数 不支持多个前缀
                         idx++;
-                    for(;idx<rawStr.size();idx++)
+                    for (; idx < rawStr.size(); idx++)
                     {
-                        if(std::isdigit(rawStr[idx]))//读到数字
+                        if (std::isdigit(static_cast<unsigned char>(rawStr[idx])))//读到数字
                             continue;
-                        if(rawStr[idx]=='.' && (!dot))//读到小数点
+                        if (rawStr[idx] == '.' && (!dot))//读到小数点
                         {
-                            dot=true;
+                            dot = true;
                             continue;
                         }
-                        isNum=false;
+                        isNum = false;
                         break;//牌有问题
                     }
-                    if(isNum)
+                    if (isNum)
                     {
-                        if(dot)//有小数点就是小数
+                        if (dot)//有小数点就是小数
                         {
-                            Node.val=std::stod(rawStr);
-                            Node.type=valueType::F64;
+                            try
+                            {
+                                Node.val = std::stod(rawStr);
+                                Node.type = valueType::F64;
+                            }
+                            catch (const std::exception&)
+                            {
+                                Node.val = rawStr;
+                                Node.type = valueType::Str;
+                            }
                         }
                         else//整数
                         {
-                            Node.val=std::stoll(rawStr);
-                            Node.type=valueType::I64;
+                            try
+                            {
+                                Node.val = std::stoll(rawStr);
+                                Node.type = valueType::I64;
+                            }
+                            catch (const std::exception&)
+                            {
+                                Node.val = rawStr;
+                                Node.type = valueType::Str;
+                            }
                         }
                     }
                     else//字符串
                     {
-                        Node.val=rawStr;
-                        Node.type=valueType::Str;
+                        Node.val = rawStr;
+                        Node.type = valueType::Str;
                     }
                 }
                 return Node;
@@ -196,6 +290,24 @@ namespace KF::UTI
                 skipWs(str,pos);
                 if(str[pos]==',') pos++;
             }
+        }
+        void open(const std::string& path)
+        {
+            std::ifstream fin(path);
+            if (!fin.is_open())
+                throw std::runtime_error("open file failed!!!");
+            std::stringstream ss;
+            ss << fin.rdbuf();
+            text = ss.str();
+            fin.close();
+            size_t pos = 0;
+            root = node{};
+            parseRoot(text, pos);
+        }
+        nodeView read(const std::string& topKey)
+        {
+            nodeView view(&root);
+            return view.get(topKey);
         }
     }
 
