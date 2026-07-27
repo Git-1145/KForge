@@ -3,7 +3,6 @@ namespace KF::UTI
 {
     namespace FIO
     {
-        
         nodeView nodeView::operator[](size_t index)
         {
             if (ptr == nullptr)
@@ -43,10 +42,10 @@ namespace KF::UTI
             const std::string& str = path;
             while (pos < str.size())
             {
-                size_t left = str.find('[', pos),
-                       right = str.find(']', left + 1);
+                size_t left = str.find(FIO_KEY_BEG, pos),
+                       right = str.find(FIO_KEY_END, left + 1);
                 if (left == std::string::npos) break;//没有项
-                if (right == std::string::npos) throw std::runtime_error("path syntax error, missing ']'");
+                if (right == std::string::npos) throw std::runtime_error("path syntax error, missing FIO_KEY_END");
                 std::string key = trim(str.substr(left + 1, right - left - 1));
                 pos = right + 1;
 
@@ -123,13 +122,13 @@ namespace KF::UTI
             std::string readBracket(std::string& str,size_t& pos)//读取[]里的内容 键
             {
                 skipWs(str,pos);
-                if(pos>=str.size() || str[pos]!='[')
+                if(pos>=str.size() || str[pos]!=FIO_KEY_BEG)
                     throw std::runtime_error(
                 "parse error at pos:" + std::to_string(pos) +
-                ", expected '['");
+                ", expected FIO_KEY_BEG");
                 pos++;//从[后面开始读
                 size_t tmp=pos;//第一个字
-                while(pos<str.size()&&str[pos]!=']')
+                while(pos<str.size()&&str[pos]!=FIO_KEY_END)
                 {
                     pos++;
                     if(pos >= str.size())//没找到]
@@ -141,13 +140,13 @@ namespace KF::UTI
             }
             std::string readQuote(const std::string& str, size_t& pos)
             {
-                if (pos >= str.size() || str[pos] != '"')
+                if (pos >= str.size() || str[pos] != FIO_STRING)
                     throw std::runtime_error(
                     "parse error at pos:" + std::to_string(pos) +
                     ", expected '\"'");
                 ++pos;
                 const size_t begin = pos;
-                while (pos < str.size() && str[pos] != '"')
+                while (pos < str.size() && str[pos] != FIO_STRING)
                     ++pos;
                 if (pos >= str.size())
                     throw std::runtime_error(
@@ -161,42 +160,42 @@ namespace KF::UTI
             {
                 skipWs(str,pos);
                 node Node;
-                if (pos < str.size() && str[pos] == '{') //读到对象
+                if (pos < str.size() && str[pos] == FIO_OBJECT_BEG) //读到对象
                 {
                     pos++;
                     skipWs(str,pos);
-                    while(pos<str.size()&&str[pos]!='}')
+                    while(pos<str.size()&&str[pos]!=FIO_OBJECT_END)
                     {
                         std::string key=readBracket(str,pos);//键对应一个对象
                         skipWs(str,pos);
                         //[]  here  =
-                        if(str[pos]=='=')
+                        if(str[pos]==FIO_SEPERATOR)
                             pos++;
                         skipWs(str,pos);
                         
                         Node.obj[key]=std::make_unique<node>(std::move(parse(str,pos)));//新建对象(递归)
                         skipWs(str,pos);
-                        if(str[pos]==',')
+                        if(str[pos]==FIO_COMMA)
                             pos++;
                         skipWs(str,pos);
                     }
                     pos++;
                 }
-                else if(str[pos]=='(')//读到数组
+                else if(str[pos]==FIO_ARRAY_BEG)//读到数组
                 {
                     pos++;
                     skipWs(str,pos);
-                    while(pos<str.size()&&str[pos]!=')')
+                    while(pos<str.size()&&str[pos]!=FIO_ARRAY_END)
                     {
                         Node.arr.push_back(std::move(parse(str,pos)));//省mmr
                         skipWs(str,pos);
-                        if(str[pos]==',')
+                        if(str[pos]==FIO_COMMA)
                             pos++;
                         skipWs(str,pos);
                     }
                     pos++;
                 }
-                else if(str[pos]=='"')//读到字符串
+                else if(str[pos]==FIO_STRING)//读到字符串
                 {
                     Node.val=readQuote(str,pos);
                     Node.type=valueType::Str;
@@ -205,8 +204,8 @@ namespace KF::UTI
                 {
                     size_t tmp = pos;
                     while (pos < str.size()
-                        && str[pos] != ',' && str[pos] != '}' && str[pos] != ')'
-                        && str[pos] != '[' && str[pos] != '=')
+                        && str[pos] != FIO_COMMA && str[pos] != FIO_OBJECT_END && str[pos] != FIO_ARRAY_END
+                        && str[pos] != FIO_KEY_BEG && str[pos] != FIO_SEPERATOR)
                     {
                         pos++;
                     }
@@ -236,29 +235,13 @@ namespace KF::UTI
                     {
                         if (dot)//有小数点就是小数
                         {
-                            try
-                            {
-                                Node.val = std::stod(rawStr);
-                                Node.type = valueType::F64;
-                            }
-                            catch (const std::exception&)
-                            {
-                                Node.val = rawStr;
-                                Node.type = valueType::Str;
-                            }
+                            Node.val = std::stod(rawStr);
+                            Node.type = valueType::F64;
                         }
                         else//整数
                         {
-                            try
-                            {
-                                Node.val = std::stoll(rawStr);
-                                Node.type = valueType::I64;
-                            }
-                            catch (const std::exception&)
-                            {
-                                Node.val = rawStr;
-                                Node.type = valueType::Str;
-                            }
+                            Node.val = std::stoll(rawStr);
+                            Node.type = valueType::I64;
                         }
                     }
                     else//字符串
@@ -280,11 +263,11 @@ namespace KF::UTI
                 std::string topKey=readBracket(str,pos);
                 if(topKey.empty()) {pos++;continue;}//空的?!
                 skipWs(str,pos);
-                if(str[pos]=='=') pos++;
+                if(str[pos]==FIO_SEPERATOR) pos++;
                 skipWs(str,pos);
                 root.obj[topKey]=std::make_unique<node>(std::move(parse(str,pos)));
                 skipWs(str,pos);
-                if(str[pos]==',') pos++;
+                if(str[pos]==FIO_COMMA) pos++;
             }
         }
         void open(const std::string& path)
@@ -306,7 +289,4 @@ namespace KF::UTI
             return view.get(topKey);
         }
     }
-
-
-    
 }

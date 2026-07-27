@@ -9,8 +9,9 @@ int main() {
         std::cout << "alice is_object=" << bob.is_object() << " is_array=" <<bob.is_array() << "\n";
         auto msg = bob.get("msg");
         std::cout << "msg is_object=" << msg.is_object() << " is_array=" << msg.is_array() << "\n";
-        auto el = msg[0];
-        std::cout << "msg[0] ok is_object=" << el.is_object() << " is_array=" << el.is_array() << "\n";
+        std::cout << File.value("[alice][msg]").size() << '\n';
+        auto el = msg[0].str();
+        std::cout << "msg[0]=" << el<<"\n";
     } catch(std::exception &e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }

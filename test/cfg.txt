@@ -1,11 +1,11 @@
 [kf]={
     [bob]={
-        [age]=(1,2,3),
-        [msg]=("  hello world  ", "测试文本")
-    },
+        [age]=(1,2,3)
+        [msg]=("  [hello world]  ", "测试文本")
+    }
     [alice]={
-        [msg]=("fuck","your mother")
-    },
+        [msg]=("[fuck]","your mother",114514,2)
+    }
     [sort]={
         [title]="fuckyu",
         [options]=

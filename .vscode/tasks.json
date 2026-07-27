@@ -8,6 +8,7 @@
             "args": [
                 "${file}",
                 "./utility/*.cpp",
+                "-I${workspaceFolder}",  // <-- 新增：将项目根目录加入头文件搜索路径
                 "-o",
                 "${file}.exe",
                 "-std=c++17",
