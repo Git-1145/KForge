@@ -1,4 +1,4 @@
-#include "kf.hpp"
+#include "KF.hpp"
 namespace KF::UTI
 {
     namespace FIO
@@ -8,15 +8,15 @@ namespace KF::UTI
             if (ptr == nullptr)
                 throw std::runtime_error("cannot index null node");
             //std::cerr << "DEBUG operator[]: ptr=" << ptr << " is_array=" << ptr->is_array() 
-            //      << " arr.size=" << ptr->arr.size() << " index=" << index << "\n";
+                  //<< " arr.size=" << ptr->arr.size() << " index=" << index << "\n";
             if (!ptr->is_array())
             {
-            //    std::cerr << "DEBUG operator[] abort: not array\n";
+               // std::cerr << "DEBUG operator[] abort: not array\n";
                 throw std::runtime_error("Unexpected index: current node is not an array");
             }
             if (index >= ptr->arr.size())
             {
-            //    std::cerr << "DEBUG operator[] abort: out of range\n";
+                //std::cerr << "DEBUG operator[] abort: out of range\n";
                 throw std::runtime_error(
                 "array out of range, size:" + std::to_string(ptr->arr.size()) +
                 " idx:" + std::to_string(index));
@@ -24,6 +24,28 @@ namespace KF::UTI
             //std::cerr << "DEBUG operator[] success: returning element\n";
             return nodeView(&ptr->arr[index]);
         }
+        //放置在你的类外部，作为静态辅助函数
+        static std::vector<std::string> splitBracket(const std::string& str)
+        {
+            std::vector<std::string> path;
+            size_t pos = 0;
+            const size_t len = str.size();
+            while (pos < len)
+            {
+                size_t leftBracket = str.find('[', pos);
+                if (leftBracket == std::string::npos)
+                    break;
+                size_t rightBracket = str.find(']', leftBracket + 1);
+                if (rightBracket == std::string::npos)
+                    break;
+
+                std::string key = str.substr(leftBracket + 1, rightBracket - leftBracket - 1);
+                path.push_back(key);
+                pos = rightBracket + 1;
+            }
+            return path;
+        }
+
         nodeView nodeView::get(const std::string& key)
         {
             auto it = ptr->obj.find(key);
@@ -42,48 +64,56 @@ namespace KF::UTI
             const std::string& str = path;
             while (pos < str.size())
             {
-                size_t left = str.find(FIO_KEY_BEG, pos),
-                       right = str.find(FIO_KEY_END, left + 1);
-                if (left == std::string::npos) break;//没有项
-                if (right == std::string::npos) throw std::runtime_error("path syntax error, missing FIO_KEY_END");
-                std::string key = trim(str.substr(left + 1, right - left - 1));
-                pos = right + 1;
+                if (str[pos] == FIO_KEY_BEG)
+                {
+                    size_t right = str.find(FIO_KEY_END, pos + 1);
+                    if (right == std::string::npos)
+                        throw std::runtime_error("path syntax error, missing FIO_KEY_END");
+                    std::string key = trim(str.substr(pos + 1, right - pos - 1));
+                    pos = right + 1;
 
-                bool isNum = true;
-                bool dot = false;
-                size_t idx = 0;
-                if (!key.empty() && (key[0] == '-' || key[0] == '+'))
-                    idx = 1;
-                int digitCount = 0;
-                for (; idx < key.size(); idx++) //键可能包含符号或数字
-                {
-                    if (std::isdigit(static_cast<unsigned char>(key[idx])))
+                    bool isNum = true;
+                    bool dot = false;
+                    size_t idx = 0;
+                    if (!key.empty() && (key[0] == '-' || key[0] == '+'))
+                        idx = 1;
+                    int digitCount = 0;
+                    for (; idx < key.size(); idx++) //键可能包含符号或数字
                     {
-                        digitCount++;
-                        continue;
+                        if (std::isdigit(static_cast<unsigned char>(key[idx])))
+                        {
+                            digitCount++;
+                            continue;
+                        }
+                        if (key[idx] == '.' && !dot)
+                        {
+                            dot = true;
+                            continue;
+                        }
+                        isNum = false;
+                        break;
                     }
-                    if (key[idx] == '.' && !dot)
+                    if (digitCount == 0)
+                        isNum = false;
+                    if (isNum && !key.empty())
                     {
-                        dot = true;
-                        continue;
+                        size_t idx = static_cast<size_t>(std::stoll(key));
+                        current = current[idx];
                     }
-                    isNum = false;
-                    break;
-                }
-                if (digitCount == 0)
-                    isNum = false;
-                if (isNum && !key.empty())
-                {
-                    size_t idx = static_cast<size_t>(std::stoll(key));
-                //    std::cerr << "DEBUG: numeric key='" << key << "' idx=" << idx << " current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
-                    current = current[idx];//如果是数字 则进入其列表的第idx项
-                //    std::cerr << "DEBUG: after numeric current assignment, current.ptr=" << current.ptr << " current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
+                    else
+                    {
+                        current = current.get(key);
+                    }
                 }
                 else
                 {
-                //    std::cerr << "DEBUG: string key='" << key << "' current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
-                    current = current.get(key);//如果是字符串 则进入其子节点 named key        
-                //    std::cerr << "DEBUG: after string current assignment, current.ptr=" << current.ptr << " current.is_array=" << current.is_array() << " current.is_object=" << current.is_object() << "\n";
+                    size_t left = str.find(FIO_KEY_BEG, pos);
+                    std::string key = trim(str.substr(pos, left == std::string::npos ? std::string::npos : left - pos));
+                    if (!key.empty())
+                        current = current.get(key);
+                    if (left == std::string::npos)
+                        break;
+                    pos = left;
                 }
             }
             return current;
@@ -270,6 +300,16 @@ namespace KF::UTI
                 if(str[pos]==FIO_COMMA) pos++;
             }
         }
+        std::vector<std::string> 
+        nVectoStrVec(std::vector<node>& vec)
+        {
+            std::vector<std::string> ret;
+            for(auto& i:vec)
+            {
+                ret.push_back(std::get<std::string>(i.val));
+            }
+            return ret;
+        }
         void open(const std::string& path)
         {
             std::ifstream fin(path);
@@ -285,8 +325,30 @@ namespace KF::UTI
         }
         nodeView read(const std::string& topKey)
         {
+            auto path = splitBracket(topKey);
+            if (path.empty())
+            {
+                nodeView view(&root);
+                return view.get(topKey);
+            }
+
             nodeView view(&root);
-            return view.get(topKey);
+            for (const std::string& seg : path)
+            {
+                if (KF::UTI::KMATH::isPosInt(seg))
+                {
+                    // 数字 → 走数组at
+                    size_t idx = std::stoull(seg);
+                    view = view.at(idx);
+                }
+                else
+                {
+                    // 普通key → 对象get
+                    view = view.get(seg);
+                }
+            }
+            return view;
         }
+
     }
 }

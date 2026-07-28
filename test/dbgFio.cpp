@@ -1,5 +1,4 @@
-﻿#include <iostream>
-#include "../utility/kf.hpp"
+﻿#include "../utility/KF.hpp"
 int main() {
     try {
         KF::UTI::FIO::open("D:/kForge/test/cfg.txt");
