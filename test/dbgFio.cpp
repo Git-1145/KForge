@@ -1,8 +1,8 @@
-﻿#include "../utility/KF.hpp"
+﻿#include "../base/KF.hpp"
 int main() {
     try {
-        KF::UTI::FIO::open("D:/kForge/test/cfg.txt");
-        auto File = KF::UTI::FIO::read("kf");
+        fio::open("D:/kForge/test/cfg.txt");
+        auto File = KF::FIO::read("kf");
         std::cout << "kf is_object=" << File.is_object() << " is_array=" << File.is_array() << "\n";
         auto bob = File.get("bob");
         std::cout << "alice is_object=" << bob.is_object() << " is_array=" <<bob.is_array() << "\n";

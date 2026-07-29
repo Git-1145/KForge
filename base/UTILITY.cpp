@@ -1,7 +1,7 @@
 #include "KF.hpp"
-namespace KF::UTI
+namespace KF
 {
-    namespace KMATH
+    namespace UTILITY
     {
         bool isPosInt(std::string str)
         {

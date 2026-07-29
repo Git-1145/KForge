@@ -1,5 +1,5 @@
 #include "KF.hpp"
-namespace KF::UTI
+namespace KF
 {
     namespace FIO
     {
@@ -300,16 +300,6 @@ namespace KF::UTI
                 if(str[pos]==FIO_COMMA) pos++;
             }
         }
-        std::vector<std::string> 
-        nVectoStrVec(std::vector<node>& vec)
-        {
-            std::vector<std::string> ret;
-            for(auto& i:vec)
-            {
-                ret.push_back(std::get<std::string>(i.val));
-            }
-            return ret;
-        }
         void open(const std::string& path)
         {
             std::ifstream fin(path);
@@ -335,7 +325,7 @@ namespace KF::UTI
             nodeView view(&root);
             for (const std::string& seg : path)
             {
-                if (KF::UTI::KMATH::isPosInt(seg))
+                if (uti::isPosInt(seg))
                 {
                     // 数字 → 走数组at
                     size_t idx = std::stoull(seg);
@@ -349,6 +339,14 @@ namespace KF::UTI
             }
             return view;
         }
-
+        std::vector<std::string> nVectoStrVec(std::vector<node>& vec)
+        {
+            std::vector<std::string> ret;
+            for(auto& i:vec)
+            {
+                ret.push_back(std::get<std::string>(i.val));
+            }
+            return ret;
+        }
     }
 }

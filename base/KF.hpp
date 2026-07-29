@@ -27,7 +27,7 @@ inline constexpr char FIO_KEY_END = ']';
 inline constexpr char FIO_SEPERATOR = '=';
 inline constexpr char FIO_COMMA = ',';
 
-namespace KF::UTI
+namespace KF
 {
     namespace FIO
     {
@@ -76,13 +76,13 @@ namespace KF::UTI
             bool is_object() const { return ptr->is_object(); }
             bool is_array() const  { return ptr->is_array();  }
             std::vector<node>& arr() { return ptr->arr; }//返回引用，杜绝拷贝vector<node>
-            ///@attention 如果不加&就会implicitly declared as deleted because 'KF::UTI::FIO::node' declares a move constructor or move assignment operator   
+            ///@attention 如果不加&就会implicitly declared as deleted because 'KF::FIO::node' declares a move constructor or move assignment operator   
             std::string str()    { return std::get<std::string>(ptr->val);}//节点的值(string类型)
             long long i64()          { return std::get<long long>(ptr->val);}//节点的值(long long类型)
             double f64()          { return std::get<double>(ptr->val);}//节点的值(double类型)
             size_t size() const { return ptr->arr.size(); }//数组大小
         };
-        std::vector<std::string> nVectoStrVec(std::vector<node>& vec);//将nodeView的vector转为string的vector
+        std::vector<std::string> nVectoStrVec(std::vector<node>& vec);
         void open(const std::string& path);
         nodeView read(const std::string& topKey);
     }
@@ -178,29 +178,70 @@ namespace KF::UTI
         inline KIO_IN  KIN;
 
         /// @brief 选项
-        size_t OPTION(std::string prompt,std::vector<std::string> options);
+        size_t option(std::string path);
         /// @brief 基础设施 如清屏 暂停 开始 结束
-        void CLEAR();
-        void PAUSE();
-        void END();
-        void BEGIN(std::wstring ConsoleTitle,std::string title ,std::string description);
+        void clear();
+        void pause();
+        void programEnd();
+        void programBegin(std::wstring ConsoleTitle,std::string title ,std::string description);
     }
-    namespace KMATH
+    namespace KTIMER
+    {
+        enum class KTimeUnit
+        {
+            us,
+            ms,
+            s
+        };
+        class KTimer
+        {
+        private:
+            using Clock = std::chrono::steady_clock;
+            using TimePoint = std::chrono::time_point<Clock>;
+            std::string name_;
+            KTimeUnit unit_;
+            TimePoint start_point_;
+            std::chrono::nanoseconds accumulated_{0};
+            bool running_{false};
+        public:
+            explicit KTimer(std::string name = "Timer", KTimeUnit unit = KTimeUnit::ms);
+            void start();
+            void pause();
+            void clear();
+            void setUnit(KTimeUnit u);
+            void setName(std::string n);
+            double getTime() const;
+            void print() const;
+        private:
+            std::string unitStr() const;
+        };
+        ///@brief 计时器管理器：管理多个命名计时器
+        class KTimerManager
+        {
+        private:
+            std::unordered_map<std::string, KTimer> timers_;
+        public:
+            void create(const std::string& name, KTimeUnit unit);
+            // 获取计时器引用
+            KTimer& get(const std::string& name);
+            bool exists(const std::string& name);
+            // 删除计时器
+            void remove(const std::string& name);
+        };
+
+
+    }
+    namespace UTILITY
     {
         /// @brief 数学工具
         bool isPosInt(std::string str);
     }
 }
 /// @brief 简写作用
-#define kout KF::UTI::CLI::KOUT
-#define kin KF::UTI::CLI::KIN
-#define kend KF::UTI::CLI::KEND
-#define koption KF::UTI::CLI::OPTION
-#define kclear KF::UTI::CLI::CLEAR
-#define kbegin KF::UTI::CLI::BEGIN
-#define kopen KF::UTI::FIO::open
-#define kread KF::UTI::FIO::read
-#define knvtos KF::UTI::FIO::nVectoStrVec
-#define kprogramend KF::UTI::CLI::END
-#define kpause KF::UTI::CLI::PAUSE
-//#define kISPOSINT KF::UTI::KMATH::isPosInt
+namespace cli = KF::CLI;
+namespace fio = KF::FIO;
+namespace timer = KF::KTIMER;
+namespace uti = KF::UTILITY;
+inline auto& kout = KF::CLI::KOUT;
+inline auto& kin = KF::CLI::KIN;
+inline auto& kend = KF::CLI::KEND;
