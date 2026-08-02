@@ -1,0 +1,65 @@
+// KForge 项目配置
+// KSON - 工程师写给自己看的格式
+
+name:    KForge
+version: 0.3.0
+desc:    "A furnace for forging modern C++ skills."
+license: MIT
+status:  active
+
+// 数字：千分位、十六进制、二进制，一目了然
+stars:   1_048_576
+mask:    0b1111_0000
+theme:   0x1A2B3C
+
+// 数组像清单，不需要逗号折磨你
+modules: [
+    CLI
+    FIO
+    Timer
+    Math
+    Parser
+    KSON
+    Container
+    Algorithm
+]
+
+// 对象展开写：尾随逗号友好，无逗号更友好
+server: {
+    host:    0.0.0.0
+    port:    8080
+    ssl:     false
+    timeout: 30s          // 时间后缀：ns, us, ms, s, m, h
+    
+    limits: {
+        max_conn: 10_000
+        memory:   512MB   // 大小后缀：B, KB, MB, GB, TB
+        rate:     1.5Mbps
+    }
+}
+
+// 矩阵/数组的数组：干净得像伪代码
+identity: [
+    [1 0 0]
+    [0 1 0]
+    [0 0 1]
+]
+
+// 多行文本：保留格式，自动去除公共缩进
+readme: """
+    # KForge
+    
+    > Build from scratch. Understand from depth.
+    
+    Principles:
+    - Priority to self-built core abilities
+    - Continuous refactoring  
+    - Engineering quality first
+    """
+
+// 原始字符串：零转义，适合正则和 Windows 路径
+pattern: `\d{2,4}-\w+\s+(.*)`
+winpath: 'C:\Users\dev\.kforge\cache'
+
+// 行内紧凑模式（此时逗号用于一行多元素）
+env: { CC: clang CXX: clang++ flags: ["-O3" "-Wall"] }

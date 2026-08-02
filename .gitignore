@@ -1,1 +1,3 @@
 *.exe
+base/trash/*.cpp
+base/trash/*.hpp
