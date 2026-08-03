@@ -11,12 +11,16 @@
 #include<iostream>
 #include<unordered_map>
 #include<variant>
-
+using Code = uint32_t;
 namespace KF
 {
     namespace KLOGGER
     {
-        
+        void Error(Code code, const std::string& extra);
+        void Warning(Code code, const std::string& extra);
+        void Info(Code code, const std::string& extra);
+        void Fatal(Code code, const std::string& extra);
+        extern std::unordered_map<Code, std::string_view> Table;// 码表
     }
     namespace KSON
     {
@@ -44,11 +48,11 @@ namespace KF
                 explicit Node(std::vector<std::pair<std::string,Node>> val);
 
                 // 类型
-                NodeType type()   noexcept;
+                NodeType type()  const noexcept;
                 bool IsNull()    const noexcept;
                 bool IsBool()    const noexcept;
                 bool IsInt()     const noexcept;
-                bool IsDec()  const noexcept;
+                bool IsDec()     const noexcept;
                 bool IsNumber()  const noexcept;  // int 或 dec
                 bool IsString()  const noexcept;
                 bool IsArray()   const noexcept;
@@ -80,7 +84,7 @@ namespace KF
                         bool,std::string,double,long long,
                         arr_t,obj_t>;
 
-                    storage_t data_;
+                    storage_t Data;
         };
         struct PathSeg
         /// @attention 与 NodePtr 的区别是 : PathSeg 只记录一个位置片段，NodePtr 是一个完整的路径
@@ -107,16 +111,80 @@ namespace KF
             private:
                 friend class NodePtr;
         };
+        class NodeProxy
+        {
+            public:
+                NodeProxy(std::shared_ptr<Document> doc, std::vector<PathSeg> path) noexcept;
+                
+                ///@brief 路径继承
+                NodeProxy operator[](std::string key) const;  // 根据 键 继续向下查找
+                NodeProxy operator[](std::size_t index) const;// 根据 下标 继续向下查找
+                
+                // 隐式转换：自动解析并返回 Node 引用
+                /// @attention 让 NodeProxy 用起来像 const Node&
+                operator const Node&() const;
+                
+                bool             AsBool()   const { return Resolve().AsBool(); }
+                long long        AsInt()    const { return Resolve().AsInt(); }
+                double           AsDec()    const { return Resolve().AsDec(); }
+                std::string      AsStr()    const { return std::string(Resolve().AsStr()); }
+                std::size_t      size()     const { return Resolve().size(); }
+                
+                bool IsNull()   const { return Resolve().IsNull(); }
+                bool IsBool()   const { return Resolve().IsBool(); }
+                bool IsInt()    const { return Resolve().IsInt(); }
+                bool IsDec()    const { return Resolve().IsDec(); }
+                bool IsNumber() const { return Resolve().IsNumber(); }
+                bool IsString() const { return Resolve().IsString(); }
+                bool IsArray()  const { return Resolve().IsArray(); }
+                bool IsObject() const { return Resolve().IsObject(); }
+                
+                bool exists() const;
+                
+            private:
+                const Node& Resolve() const;  // 严格解析，失败抛异常
+                
+                std::shared_ptr<Document> doc_;
+                std::vector<PathSeg> path_;
+                mutable const Node* cached_ = nullptr;
+        };
         class NodePtr
         {
             public:
-                NodePtr() noexcept;
-                NodePtr(std::shared_ptr<Document> doc,std::vector<PathSeg> path) noexcept;
+                //NodePtr() noexcept;
+                //NodePtr(std::shared_ptr<Document> doc,std::vector<PathSeg> path) noexcept;
         };
         using kson = NodePtr;
-        /// @example kson a = KSON::parse("({"a":1,"b":2,"c":[1,2,3],"d":{"e":4,"f":5}})");
+
+        /////////////////////////////////////////////////////////
+
+        ///@brief 读取文件并解析
+        std::string Preprocess(std::string raw); // 预处理，将注释删除，将转义字符替换，去掉空格 换行等
+    }
+    namespace KFIO
+    {
+        std::string ReadFileRaw(std::string_view filepath);// 读取文件(粗文本 没有任何处理)
     }
 }
 namespace KSON = KF::KSON;
 namespace KLOG = KF::KLOGGER;
-#define LOG KF::KLOGGER::Logger::instance()
+namespace KFIO = KF::KFIO;
+
+constexpr char CHAR_COMMENT1 = '#';
+constexpr char CHAR_QUOTE1  = '\"';
+constexpr char CHAR_ESCAPE1  = '\\';
+/* @brief 报错码 KLOGGER.cpp
+错误码格式：0x[aa][b][cc][ddd]，其中：
+        - [aa]：模块号（2位16进制）
+        - [b]：等级（1位16进制）
+        - [cc]: 类型（2位16进制）
+        - [ddd]：具体错误码（3位16进制）
+*/
+constexpr Code TEST_INFO = 0x01101001;
+constexpr Code TEST_WARN = 0x01201002;
+constexpr Code TEST_ERROR = 0x01301003;
+constexpr Code TEST_FATAL = 0x01401004;
+
+constexpr Code KSON_TYPE_MISMATCH  = 0x02301001; // KSON AsSth 类型不匹配
+constexpr Code KFIO_FILE_OPEN_FAIL = 0x02401001; // KFIO 文件打开失败
+constexpr Code KFIO_FILE_READ_FAIL = 0x02401002; // KFIO 文件读取失败

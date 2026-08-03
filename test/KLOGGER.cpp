@@ -1,9 +1,11 @@
 #include "../base/KF.hpp"
-#include "../base/KLOGGER.cpp"
 using namespace std;
 int main()
 {
-    LOG.error(0x01040001, "附加信息");
+    KF::KLOGGER::Error(TEST_ERROR, "作者有病");
+    KF::KLOGGER::Warning(TEST_WARN, "作者可能有病");
+    KF::KLOGGER::Info(TEST_INFO, "作者没病");
+    KF::KLOGGER::Fatal(TEST_FATAL, "作者病入膏肓了");
     system("pause");
     return 0;
 }

@@ -1,18 +1,17 @@
-// KForge é¡¹ç›®é…ç½®
-// KSON - å·¥ç¨‹å¸ˆå†™ç»™è‡ªå·±çœ‹çš„æ ¼å¼
+# KForge ÏîÄ¿ÅäÖÃ
+# KSON - ¹¤³ÌÊ¦Ğ´¸ø×Ô¼º¿´µÄ¸ñÊ½
 
-name:    KForge
-version: 0.3.0
-desc:    "A furnace for forging modern C++ skills."
-license: MIT
-status:  active
+name:    KForge,
+version: 0.3.0,
+desc:    "A furnace for forging modern C++ \n\t\tskills.",
+license: MIT,
+status:  active,
 
-// æ•°å­—ï¼šåƒåˆ†ä½ã€åå…­è¿›åˆ¶ã€äºŒè¿›åˆ¶ï¼Œä¸€ç›®äº†ç„¶
-stars:   1_048_576
-mask:    0b1111_0000
-theme:   0x1A2B3C
+# Êı×Ö£ºÇ§·ÖÎ»¡¢Ê®Áù½øÖÆ¡¢¶ş½øÖÆ£¬Ò»Ä¿ÁËÈ»
+stars:   1_048_576,
+mask:    0b1111_0000,
+theme:   0x1A2B3C,
 
-// æ•°ç»„åƒæ¸…å•ï¼Œä¸éœ€è¦é€—å·æŠ˜ç£¨ä½ 
 modules: [
     CLI
     FIO
@@ -22,44 +21,32 @@ modules: [
     KSON
     Container
     Algorithm
-]
+],
 
-// å¯¹è±¡å±•å¼€å†™ï¼šå°¾éšé€—å·å‹å¥½ï¼Œæ— é€—å·æ›´å‹å¥½
 server: {
-    host:    0.0.0.0
-    port:    8080
-    ssl:     false
-    timeout: 30s          // æ—¶é—´åç¼€ï¼šns, us, ms, s, m, h
+    host:    0.0.0.0,
+    port:    8080,
+    ssl:     false,
+    timeout: 30s,          # Ê±¼äºó×º£ºns, us, ms, s, m, h
     
     limits: {
-        max_conn: 10_000
-        memory:   512MB   // å¤§å°åç¼€ï¼šB, KB, MB, GB, TB
-        rate:     1.5Mbps
+        max_conn: 10_000,
+        memory:   512MB,   # ´óĞ¡ºó×º£ºB, KB, MB, GB, TB
+        rate:     1.5Mbps,
     }
-}
+},
 
-// çŸ©é˜µ/æ•°ç»„çš„æ•°ç»„ï¼šå¹²å‡€å¾—åƒä¼ªä»£ç 
+# ¾ØÕó/Êı×éµÄÊı×é£º¸É¾»µÃÏñÎ±´úÂë
 identity: [
-    [1 0 0]
-    [0 1 0]
+    [1 0 0],
+    [0 1 0],
     [0 0 1]
-]
+],
+readme:"                       spaces \t\t  back\b\b         ",
+# KForge
+# Ô­Ê¼×Ö·û´®£ºÁã×ªÒå£¬ÊÊºÏÕıÔòºÍ Windows Â·¾¶
+pattern: `\d{2,4}-\w+\s+(.*)`,
+winpath: 'C:\Users\dev\.kforge\cache',
 
-// å¤šè¡Œæ–‡æœ¬ï¼šä¿ç•™æ ¼å¼ï¼Œè‡ªåŠ¨å»é™¤å…¬å…±ç¼©è¿›
-readme: """
-    # KForge
-    
-    > Build from scratch. Understand from depth.
-    
-    Principles:
-    - Priority to self-built core abilities
-    - Continuous refactoring  
-    - Engineering quality first
-    """
-
-// åŸå§‹å­—ç¬¦ä¸²ï¼šé›¶è½¬ä¹‰ï¼Œé€‚åˆæ­£åˆ™å’Œ Windows è·¯å¾„
-pattern: `\d{2,4}-\w+\s+(.*)`
-winpath: 'C:\Users\dev\.kforge\cache'
-
-// è¡Œå†…ç´§å‡‘æ¨¡å¼ï¼ˆæ­¤æ—¶é€—å·ç”¨äºä¸€è¡Œå¤šå…ƒç´ ï¼‰
-env: { CC: clang CXX: clang++ flags: ["-O3" "-Wall"] }
+# ĞĞÄÚ½ô´ÕÄ£Ê½£¨´ËÊ±¶ººÅÓÃÓÚÒ»ĞĞ¶àÔªËØ£©
+env: { CC: clang,CXX: clang++,flags: ["-O3","-Wall"] }
