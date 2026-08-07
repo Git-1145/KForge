@@ -1,52 +1,58 @@
-# KForge ÏîÄ¿ÅäÖÃ
-# KSON - ¹¤³ÌÊ¦Ğ´¸ø×Ô¼º¿´µÄ¸ñÊ½
+# KSON å…¨åŠŸèƒ½æµ‹è¯•é…ç½®æ–‡ä»¶
+# æ¶µç›–æ‰€æœ‰æ•°æ®ç±»å‹ã€åµŒå¥—ç»“æ„ã€è½¬ä¹‰å­—ç¬¦ç­‰
 
-name:    KForge,
-version: 0.3.0,
-desc:    "A furnace for forging modern C++ \n\t\tskills.",
-license: MIT,
-status:  active,
-
-# Êı×Ö£ºÇ§·ÖÎ»¡¢Ê®Áù½øÖÆ¡¢¶ş½øÖÆ£¬Ò»Ä¿ÁËÈ»
-stars:   1_048_576,
-mask:    0b1111_0000,
-theme:   0x1A2B3C,
-
-modules: [
-    CLI
-    FIO
-    Timer
-    Math
-    Parser
-    KSON
-    Container
-    Algorithm
-],
-
-server: {
-    host:    0.0.0.0,
-    port:    8080,
-    ssl:     false,
-    timeout: 30s,          # Ê±¼äºó×º£ºns, us, ms, s, m, h
-    
-    limits: {
-        max_conn: 10_000,
-        memory:   512MB,   # ´óĞ¡ºó×º£ºB, KB, MB, GB, TB
-        rate:     1.5Mbps,
-    }
+"intro": {
+    "name": "cfg.kson",
+    "description": "KSON å…¨åŠŸèƒ½æµ‹è¯•é…ç½®",
+    "author": "KForge"
 },
-
-# ¾ØÕó/Êı×éµÄÊı×é£º¸É¾»µÃÏñÎ±´úÂë
-identity: [
-    [1 0 0],
-    [0 1 0],
-    [0 0 1]
-],
-readme:"                       spaces \t\t  back\b\b         ",
-# KForge
-# Ô­Ê¼×Ö·û´®£ºÁã×ªÒå£¬ÊÊºÏÕıÔòºÍ Windows Â·¾¶
-pattern: `\d{2,4}-\w+\s+(.*)`,
-winpath: 'C:\Users\dev\.kforge\cache',
-
-# ĞĞÄÚ½ô´ÕÄ£Ê½£¨´ËÊ±¶ººÅÓÃÓÚÒ»ĞĞ¶àÔªËØ£©
-env: { CC: clang,CXX: clang++,flags: ["-O3","-Wall"] }
+"types": {
+    "integer": 42,
+    "negative_int": -7,
+    "big_int": 2147483648,
+    "decimal": 3.14,
+    "negative_dec": -1.5,
+    "int_as_dec": 123.1,
+    "string": "Hello, KSON!",
+    "chinese": "ä½ å¥½ä¸–ç•Œ",
+    "unicode": "ã“ã‚“ã«ã¡ã¯",
+    "bool_true": true,
+    "bool_false": false,
+    "null_value": null,
+    "empty_str": ""
+},
+"arrays": {
+    "int_array": [1, 2, 3, 4, 5],
+    "mixed_array": [1, "two", 3.0, true, null],
+    "string_array": ["apple", "banana", "cherry"],
+    "nested_2d": [
+        ["a", "b", "c"],
+        ["d", "e", "f"],
+        ["g", "h", "i"]
+    ],
+    "nested_3d": [
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        [[10, 11, 12], [13, 14, 15], [16, 17, 18]]
+    ],
+    "empty_array": []
+},
+"objects": {
+    "nested": {
+        "level1": {
+            "level2": {
+                "deep_value": "found me!"
+            }
+        }
+    },
+    "empty_obj": {}
+},
+"escapes": {
+    "newline": "line1\nline2",
+    "tab": "col1\tcol2",
+    "quote": "say \"hi\"",
+    "backslash": "path\\to\\file",
+    "carriage_return": "line\r\n",
+    "backspace": "abc\b\b\bxyz"
+},
+"dup_key": "first",
+"dup_key": "second"

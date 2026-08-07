@@ -1,7 +1,6 @@
 # KForge
 
-> 一个跨平台 C++ 基础工具库与算法学习项目。
-
+> 一个C艹 基础工具库与算法学习项目。
 ## 简介
 
 KForge 是一个个人 C++ 学习项目，作为算法与 C++ 特性学习的实验场。
@@ -18,8 +17,8 @@ kForge/
 │   ├── UTILITY.cpp    # 通用工具函数
 │   └── references.md  # API 使用手册
 ├── test/              # 模块测试与系统测试
-│   ├── cfg_test.txt   # 复杂边界测试配置
-│   └── system_test.cpp # 自动化系统测试框架
+│   ├── test_xxx.txt   # 复杂边界测试配置
+│   └── dbgxxx.cpp     # 自动化系统测试框架
 ├── study/             # 算法与 C++ 特性学习代码
 │   ├── algorithm/     # 排序、搜索算法
 │   └── cpp/           # C++ 进阶特性实验

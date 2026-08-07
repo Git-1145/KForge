@@ -15,7 +15,7 @@
                 "-Wall",
                 "-Wextra",
                 "-finput-charset=UTF-8",
-                "-fexec-charset=GBK"
+                "-fexec-charset=UTF-8"
             ],
             "group": {
                 "kind": "build",

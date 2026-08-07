@@ -1,3 +1,5 @@
 *.exe
 base/trash/*.cpp
 base/trash/*.hpp
+.trae/
+base/DEVLOG.md
