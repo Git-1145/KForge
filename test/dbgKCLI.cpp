@@ -12,7 +12,7 @@
  *   7. kin 链式输入 (int / double / string / bool)
  *   8. KOptions 菜单 (字符串配置)
  *   9. 从文件读取配置的 KOptions
- *  10. kpause / kend
+ *  10. kpause / KEnd
  */
 
 #include "../base/KF.hpp"
@@ -27,8 +27,8 @@ using namespace KCLI;
 int main()
 {
     auto root = ReadKsonFile("cfg.kson");
-    // kbegin: 启用 VT100, 设置标题, 打印标题框
-    kbegin(root);
+    // KBegin: 启用 VT100, 设置标题, 打印标题框
+    KBegin(root);
 
     // ==================== 1. kout 链式输出 ====================
     SECTION("1. kout 链式输出");
@@ -145,6 +145,6 @@ int main()
     // ==================== 完成 ====================
     kout << Color::Bold << "\n=== dbgKCLI 所有测试完成 ===" << Color::Reset << std::endl;
 
-    // kend: 暂停后退出
-    kend();
+    // KEnd: 暂停后退出
+    KEnd();
 }

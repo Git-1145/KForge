@@ -14,6 +14,7 @@
 - [KSON 解析模块](#kson-解析模块)
 - [KFIO 文件读写模块](#kfio-文件读写模块)
 - [KCLI 命令行交互模块](#kcli-命令行交互模块)
+- [KTIMER 计时器模块](#ktimer-计时器模块)
 - [KSON 数据格式](#kson-数据格式)
 - [错误码速查表](#错误码速查表)
 - [快速上手](#快速上手)
@@ -27,6 +28,7 @@ KF
 ├── KLOGGER      日志、错误码、颜色常量
 ├── KSON         数据解析、节点树、路径访问
 ├── KFIO         文件读取
+├── KTIMER       计时器管理
 └── KCLI         命令行 UI、链式 I/O
 ```
 
@@ -35,6 +37,7 @@ KF
 | `KLOG` | `KF::KLOGGER` | 日志模块简写 |
 | `KSON` | `KF::KSON` | 解析模块简写 |
 | `KFIO` | `KF::KFIO` | 文件模块简写 |
+| `KTIMER` | `KF::KTIMER` | 计时模块简写 |
 | `KCLI` | `KF::KCLI` | CLI 模块简写 |
 
 头文件底部通过 `using namespace KF::KLOGGER;` 将错误码、`Color`、`LogLevel`、`Module`、`MakeCode` 引入全局作用域，调用处无需前缀。
@@ -47,7 +50,7 @@ KF
 
 ### Color 颜色常量
 
-VT100 转义序列，`kbegin()` 和 `Log()` 各自自动启用对应句柄的 VT100 处理。
+VT100 转义序列，`KBegin()` 和 `Log()` 各自自动启用对应句柄的 VT100 处理。
 
 | 常量 | 转义码 | 用途 |
 |------|--------|------|
@@ -82,7 +85,7 @@ enum class LogLevel : uint32_t {
 | `Module::Common` | `0x01` | 通用/测试 |
 | `Module::KFIO` | `0x02` | 文件读写 |
 | `Module::KSON` | `0x03` | 数据解析 |
-| `Module::KTIMER` | `0x04` | 计时（预留） |
+| `Module::KTIMER` | `0x04` | 计时 |
 | `Module::KCLI` | `0x05` | 命令行交互 |
 
 ### MakeCode 错误码组装
@@ -416,10 +419,10 @@ kin >> age >> name;                           // 每次读取一行
 
 ### CLI 功能函数
 
-#### kbegin
+#### KBegin
 
 ```cpp
-void kbegin(const KSON::kson& config);
+void KBegin(const KSON::kson& config);
 ```
 
 初始化 CLI 环境：
@@ -435,10 +438,10 @@ KSON 入参格式：
 "description": "应用描述"
 ```
 
-#### koptions
+#### KOptions
 
 ```cpp
-std::size_t koptions(const KSON::kson& menu);
+std::size_t KOptions(const KSON::kson& menu);
 ```
 
 显示选项菜单，循环等待合法输入。
@@ -465,10 +468,10 @@ void kpause();
 
 显示 "按任意键继续..." 并等待按键。
 
-#### kend
+#### KEnd
 
 ```cpp
-void kend();
+void KEnd();
 ```
 
 调用 `kpause()` 后 `exit(0)` 退出程序。
@@ -481,6 +484,186 @@ void kend();
 | `EnableVT100()` | 启用 stdout 的 VT100 处理 |
 | `SetTitleUTF8(title)` | UTF-8 转宽字符设置控制台标题 |
 | `GetStr(node, key)` | 从 kson 节点取字符串，不存在返回空串 |
+
+---
+
+## KTIMER 计时器模块
+
+**源文件**: `KTIMER.cpp` | **命名空间**: `KF::KTIMER`
+
+> `Color` 定义在 `KF::KLOGGER::Color`，KTIMER 中通过命名空间别名引入：`namespace Color = KF::KLOGGER::Color;`
+
+### TimeUnit 时间单位枚举
+
+```cpp
+enum class TimeUnit {
+    ns,  // 纳秒
+    us,  // 微秒
+    ms,  // 毫秒
+    s,   // 秒
+};
+```
+
+### TimerState 计时器状态枚举
+
+```cpp
+enum class TimerState {
+    Running,  // 运行中
+    Paused,   // 已暂停
+};
+```
+
+### 计时器功能函数
+
+#### SetTimer
+
+```cpp
+bool SetTimer(const std::string& name, TimeUnit unit);
+```
+
+新建计时器（指定名字和单位），创建后立即开始计时。同名计时器已存在时覆盖并发出警告。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const std::string&` | 计时器名称（唯一标识） |
+| `unit` | `TimeUnit` | 时间单位（ns/us/ms/s） |
+
+| 返回值 | 说明 |
+|--------|------|
+| `true` | 新建成功 |
+| `false` | 同名已存在（已覆盖） |
+
+#### PauseTimer
+
+```cpp
+bool PauseTimer(const std::string& name);
+```
+
+暂停计时器（累计已运行时间）。
+
+| 返回值 | 说明 |
+|--------|------|
+| `true` | 暂停成功 |
+| `false` | 不存在或未在运行 |
+
+#### StartTimer
+
+```cpp
+bool StartTimer(const std::string& name);
+```
+
+恢复已暂停的计时器。
+
+| 返回值 | 说明 |
+|--------|------|
+| `true` | 恢复成功 |
+| `false` | 不存在或未暂停 |
+
+#### DeleteTimer
+
+```cpp
+bool DeleteTimer(const std::string& name);
+```
+
+删除计时器。
+
+| 返回值 | 说明 |
+|--------|------|
+| `true` | 删除成功 |
+| `false` | 不存在 |
+
+#### GetTimer
+
+```cpp
+double GetTimer(const std::string& name);
+```
+
+获取计时器当前累计时间（按计时器单位）。
+
+| 返回值 | 说明 |
+|--------|------|
+| `>= 0` | 累计时间（double） |
+| `-1.0` | 计时器不存在 |
+
+#### PrintTimer
+
+```cpp
+void PrintTimer(const std::string& name);
+```
+
+打印单个计时器信息（格式化框）。输出示例：
+
+```
++------------------------------------------+
+|  Timer: render                           |
++------------------------------------------+
+|  State   : Running                       |
+|  Elapsed : 1234.56 ms                    |
++------------------------------------------+
+```
+
+#### PrintAllTimers
+
+```cpp
+void PrintAllTimers();
+```
+
+打印所有计时器信息（格式化表格，按名称排序）。输出示例：
+
+```
++--------------------------------------------------+
+|  KTIMER - 所有计时器 (2)                          |
++--------------------------------------------------+
+|  Name          State       Elapsed              |
+|  load          Paused      567.89 us            |
+|  render        Running     1234.56 ms           |
++--------------------------------------------------+
+```
+
+### 使用示例
+
+```cpp
+#include "KF.hpp"
+using namespace KTIMER;
+using namespace KCLI;
+
+int main() {
+    KBegin(read(Preprocess(
+        "\"title\": \"计时器示例\","
+        "\"description\": \"KTIMER 模块演示\""
+    )));
+
+    // 新建计时器（创建即开始计时）
+    SetTimer("render", TimeUnit::ms);
+    SetTimer("load",   TimeUnit::us);
+
+    // 模拟工作
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 暂停
+    PauseTimer("render");
+
+    // 恢复
+    StartTimer("render");
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    PauseTimer("render");
+    PauseTimer("load");
+
+    // 打印
+    PrintTimer("render");
+    PrintAllTimers();
+
+    // 获取时间值
+    double elapsed = GetTimer("render");
+    kout << "render 耗时: " << elapsed << " ms" << std::endl;
+
+    // 清理
+    DeleteTimer("render");
+    DeleteTimer("load");
+
+    KEnd();
+}
+```
 
 ---
 
@@ -576,6 +759,14 @@ KSON 是 KForge 自定义的类 JSON 数据格式。
 |------|------|------|------|
 | `KCLI_INPUT_INVALID` | `0x05201001` | Warning | 输入解析失败 |
 
+### KTIMER 模块 (04)
+
+| 常量 | 码值 | 等级 | 说明 |
+|------|------|------|------|
+| `KTIMER_NOT_FOUND` | `0x04201001` | Warning | 计时器不存在 |
+| `KTIMER_ALREADY_EXISTS` | `0x04201002` | Warning | 计时器已存在（将被覆盖） |
+| `KTIMER_STATE_ERROR` | `0x04201003` | Warning | 计时器状态不允许此操作 |
+
 ### 未知模块 (00)
 
 | 常量 | 码值 | 等级 | 说明 |
@@ -599,7 +790,7 @@ int main() {
         "\"title\": \"我的应用\","
         "\"description\": \"KForge 框架演示\""
     ));
-    kbegin(cfg);
+    KBegin(cfg);
 
     // 2. 彩色输出
     kout  << "程序启动成功" << std::endl;
@@ -607,6 +798,7 @@ int main() {
 
     // 3. 读取 KSON 配置文件
     kson doc = read(Preprocess(KFIO::ReadFileRaw("cfg.txt")));
+    //Alter: kson doc = ReadKsonFile("cfg.txt");
     kout << "版本号: " << doc["version"].Auto() << std::endl;
 
     // 4. 数组遍历
@@ -619,10 +811,10 @@ int main() {
         "\"title\": \"请选择操作\","
         "\"options\": [\"开始\", \"设置\", \"退出\"]"
     ));
-    size_t choice = koptions(menu);
+    size_t choice = KOptions(menu);
     kout << "你选择了: " << choice << std::endl;
 
-    kend();  // 暂停后退出
+    KEnd();  // 暂停后退出
 }
 ```
 
@@ -630,16 +822,11 @@ int main() {
 
 ```bat
 cl /EHsc /std:c++17 /utf-8 /I..\base ^
-    ..\base\KSON.cpp ..\base\KLOGGER.cpp ..\base\KFIO.cpp ..\base\KCLI.cpp ^
+    ..\base\KSON.cpp ..\base\KLOGGER.cpp ..\base\KFIO.cpp ..\base\KCLI.cpp ..\base\KTIMER.cpp ^
     main.cpp /Fe:app.exe
 ```
 
 ---
-
-## 测试脚本
-
-**目录**: `test/` | **编译脚本**: `test/build.bat`
-
 ### 测试文件一览
 
 | 文件 | 测试模块 | 覆盖功能 |
@@ -647,23 +834,14 @@ cl /EHsc /std:c++17 /utf-8 /I..\base ^
 | `dbgKSON.cpp` | KSON | 字符串/文件解析、类型判断、取值、路径访问、find/at、size、Auto、多维数组遍历、转义、注释/尾随逗号、重复键、空容器、Preprocess、错误条件 |
 | `dbgKFIO.cpp` | KFIO | ReadFileRaw 读取/验证、与 KSON 集成、空文件、Fatal 测试（读取不存在文件） |
 | `dbgKLOGGER.cpp` | KLOGGER | KLOG_INFO/WARNING/ERROR/FATAL 宏、各模块错误码、MakeCode 组装、Table 码表查询、LogLevel/Module 枚举、Color 常量展示 |
-| `dbgKCLI.cpp` | KCLI | kout/koutW/koutE/koutF 链式输出、临时换色、Color 常量展示、kin 链式输入、koptions 菜单、从文件读取配置、kpause/kend |
+| `dbgKCLI.cpp` | KCLI | kout/koutW/koutE/koutF 链式输出、临时换色、Color 常量展示、kin 链式输入、KOptions 菜单、从文件读取配置、kpause/KEnd |
+| `dbgKTIMER.cpp` | KTIMER | SetTimer 新建/重名覆盖、计时精度验证、PauseTimer/StartTimer 暂停恢复、错误处理（不存在/状态错误）、GetTimer、PrintTimer、PrintAllTimers、DeleteTimer、综合工作流、空表打印 |
 
 ### 测试配置文件
 
 | 文件 | 用途 |
 |------|------|
-| `test_cfg.kson` | KSON 全功能测试数据（所有数据类型、嵌套结构、转义、注释、重复键） |
-| `test_cli.kson` | KCLI 菜单配置 |
-
-### 编译全部测试
-
-```bat
-cd test
-build.bat
-```
-
-> **注意**: `build.bat` 需要在已配置 MSVC 环境的终端中运行（开发者命令提示符或已调用 `vcvarsall.bat`）。如 `cl` 不在 PATH 中，脚本会报错提示。
+| `cfg.kson` | KSON 全功能测试数据（所有数据类型、嵌套结构、转义、注释、重复键） |
 
 ### Fatal 测试说明
 
@@ -701,3 +879,10 @@ build.bat
 2. 在 `KCLI.cpp` 的 `namespace KF::KCLI` 中实现
 3. 使用 `Color::xxx` 设置输出颜色
 4. 更新本文档的 KCLI 章节
+
+### 新增 KTIMER 功能
+
+1. 在 `KF.hpp` 的 `KTIMER` namespace 中添加函数声明
+2. 在 `KTIMER.cpp` 的 `namespace KF::KTIMER` 中实现
+3. 使用 `Color::xxx` 设置输出颜色，保持与 KCLI 统一的框线风格
+4. 更新本文档的 KTIMER 章节

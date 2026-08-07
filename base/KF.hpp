@@ -3,6 +3,7 @@
 #include<cmath>
 #include<string>
 #include<random>
+#include<cstdlib>
 #include<stdexcept>
 #include<windows.h>
 #include<functional>
@@ -69,7 +70,7 @@ namespace KF
             constexpr uint32_t Common  = 0x01; // 通用模块（测试用）
             constexpr uint32_t KFIO    = 0x02; // KFIO 文件读写模块
             constexpr uint32_t KSON    = 0x03; // KSON 解析模块
-            constexpr uint32_t KTIMER  = 0x04; // KTIMER 计时模块（预留）
+            constexpr uint32_t KTIMER  = 0x04; // KTIMER 计时模块
             constexpr uint32_t KCLI    = 0x05; // KCLI 命令行交互模块
         }
 
@@ -106,6 +107,11 @@ namespace KF
         // KCLI 模块 (05)
         extern const Code KCLI_INPUT_INVALID;   // KCLI 输入解析失败（类型不匹配）
 
+        // KTIMER 模块 (04)
+        extern const Code KTIMER_NOT_FOUND;       // KTIMER 计时器不存在 Warning
+        extern const Code KTIMER_ALREADY_EXISTS;  // KTIMER 计时器已存在（将被覆盖） Warning
+        extern const Code KTIMER_STATE_ERROR;     // KTIMER 计时器状态不允许此操作 Warning
+
         // KSON 模块 (03)
         extern const Code KSON_PARSE_STRE;             // 解析错误 不以双引号开头(多半是BUG)
         extern const Code KSON_PARSE_STR_NOEND;        // 解析错误 没有双引号匹配
@@ -131,7 +137,7 @@ namespace KF
         extern const Code UNKNOWN;
 
         /////////////////////////////////////////////////////////
-        // VT100 颜色常量（kbegin / Log 自动启用 VT100 处理）
+        // VT100 颜色常量（KBegin / Log 自动启用 VT100 处理）
         /////////////////////////////////////////////////////////
         namespace Color
         {
@@ -371,7 +377,7 @@ namespace KF
         /// @brief 初始化 CLI：启用 VT100 颜色，设置控制台标题（支持中文），
         ///        打印标题框和描述
         /// @param config KSON 节点，需含 "title" 字段，可选 "description"
-        void kbegin(const KSON::kson& config);
+        void KBegin(const KSON::kson& config);
 
         /// @brief 显示选项菜单，循环等待用户输入合法选项
         /// @param menu KSON 节点，需含 "title" 和 "options"（字符串数组）
@@ -382,20 +388,63 @@ namespace KF
         void kpause();
 
         /// @brief 结束：暂停后退出程序（exit(0)）
-        void kend();
+        void KEnd();
+    }
+    namespace KTIMER
+    {
+        // Color 常量统一定义在 KF::KLOGGER::Color，此处创建别名以便 KTIMER 内直接使用 Color::xxx
+        namespace Color = KF::KLOGGER::Color;
+
+        /// @brief 时间单位枚举
+        enum class TimeUnit
+        {
+            ns,  // 纳秒
+            us,  // 微秒
+            ms,  // 毫秒
+            s,   // 秒
+        };
+
+        /// @brief 计时器状态枚举
+        enum class TimerState
+        {
+            Running,  // 运行中
+            Paused,   // 已暂停
+        };
+
+        /// @brief 新建计时器（指定名字和单位），创建后立即开始计时
+        /// @param name  计时器名称（唯一标识）
+        /// @param unit  时间单位（ns/us/ms/s）
+        /// @return true=新建成功，false=同名已存在（已覆盖，发出警告）
+        bool SetTimer(const std::string& name, TimeUnit unit);
+
+        /// @brief 暂停计时器（累计已运行时间）
+        /// @return true=暂停成功，false=不存在或未在运行
+        bool PauseTimer(const std::string& name);
+
+        /// @brief 恢复已暂停的计时器
+        /// @return true=恢复成功，false=不存在或未暂停
+        bool StartTimer(const std::string& name);
+
+        /// @brief 删除计时器
+        /// @return true=删除成功，false=不存在
+        bool DeleteTimer(const std::string& name);
+
+        /// @brief 获取计时器当前累计时间（按计时器单位）
+        /// @return >=0 累计时间，-1.0 表示不存在
+        double GetTimer(const std::string& name);
+
+        /// @brief 打印单个计时器信息（格式化框）
+        void PrintTimer(const std::string& name);
+
+        /// @brief 打印所有计时器信息（格式化表格，按名称排序）
+        void PrintAllTimers();
     }
 }
 namespace KSON = KF::KSON;
 namespace KLOG = KF::KLOGGER;
 namespace KFIO = KF::KFIO;
 namespace KCLI = KF::KCLI;
+namespace KTIMER = KF::KTIMER;
 
 constexpr size_t DEFAULT_RESIZE_STR_LEN = 64; // 默认KSON中字符串的分配长度 (超过这个长度会再次扩容)
-
-/////////////////////////////////////////////////////////
-// 将 KF::KLOGGER 中的错误码、LogLevel、Module、MakeCode、Color
-// 引入全局作用域，使调用处无需前缀：
-//   KLOG_ERROR(KSON_PARSE_STRE, "")  而非  KLOG_ERROR(KF::KLOGGER::KSON_PARSE_STRE, "")
-//   Color::Cyan                       而非  KF::KLOGGER::Color::Cyan
-/////////////////////////////////////////////////////////
 using namespace KF::KLOGGER;

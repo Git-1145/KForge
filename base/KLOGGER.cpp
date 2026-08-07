@@ -122,6 +122,11 @@ namespace KF
             // KCLI 模块 (05)
             const Code KCLI_INPUT_INVALID = MakeCode(Module::KCLI, LogLevel::Warning, 0x01, 0x001);
 
+            // KTIMER 模块 (04)
+            const Code KTIMER_NOT_FOUND       = MakeCode(Module::KTIMER, LogLevel::Warning, 0x01, 0x001);
+            const Code KTIMER_ALREADY_EXISTS  = MakeCode(Module::KTIMER, LogLevel::Warning, 0x01, 0x002);
+            const Code KTIMER_STATE_ERROR     = MakeCode(Module::KTIMER, LogLevel::Warning, 0x01, 0x003);
+
             // KSON 模块 (03)
             const Code KSON_PARSE_STRE             = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x001);
             const Code KSON_PARSE_STR_NOEND        = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x002);
@@ -162,6 +167,10 @@ namespace KF
                 {KFIO_FILE_READ_FAIL,           "KFIO read file failed"},
                 // KCLI 模块
                 {KCLI_INPUT_INVALID,            "KCLI input invalid, failed to parse"},
+                // KTIMER 模块
+                {KTIMER_NOT_FOUND,              "KTIMER timer not found"},
+                {KTIMER_ALREADY_EXISTS,         "KTIMER timer already exists, will be overwritten"},
+                {KTIMER_STATE_ERROR,            "KTIMER timer state does not allow this operation"},
                 // KSON 模块
                 {KSON_PARSE_STRE,               "KSON Parse string, expecting a quote"},
                 {KSON_PARSE_STR_NOEND,          "KSON Parse string, expecting an ending quote"},
@@ -200,7 +209,7 @@ namespace KF
  *      - 01：通用模块（测试用）
  *      - 02：KFIO
  *      - 03：KSON
- *      - 04：KTIMER（预留）
+ *      - 04：KTIMER
  *
  * 3. 等级（见 KF::KLOGGER::LogLevel）
  *      - 1：信息    Info

@@ -1,5 +1,4 @@
 #include "KF.hpp"
-#include <cstdlib>
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
@@ -8,7 +7,7 @@ using namespace KLOG;
  * @file KCLI.cpp
  * @brief KCLI 命令行交互模块实现
  *
- * KSON 配置格式（kbegin 入参）：
+ * KSON 配置格式（KBegin 入参）：
  *   "title": "应用标题",
  *   "description": "应用描述"
  *
@@ -73,7 +72,7 @@ namespace KF
         // CLI 功能函数实现
         /////////////////////////////////////////////////////////
 
-        void kbegin(const kson& config)
+        void KBegin(const kson& config)
         {
             // 启用 VT100 颜色 + UTF-8 输出
             EnableVT100();
@@ -180,7 +179,7 @@ namespace KF
             std::cout << "\n";
         }
 
-        void kend()
+        void KEnd()
         {
             kpause();
             exit(0);
