@@ -147,7 +147,9 @@ namespace KF
             const Code KSON_PARSE_OBJUE            = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x0B8);
             const Code KSON_PARSE_TRAIL            = MakeCode(Module::KSON, LogLevel::Warning, 0x02, 0x011);
             const Code KSON_TYPE_MISMATCH          = MakeCode(Module::KSON, LogLevel::Fatal,   0x01, 0x001);
-
+            // KBIGNUM 模块 (06)
+            const Code KBIGNUM_MULPOINT            = MakeCode(Module::KBIGNUM, LogLevel::Warning, 0x01, 0x002);
+            const Code KBIGNUM_INVALIDCHAR         = MakeCode(Module::KBIGNUM, LogLevel::Warning, 0x01, 0x004);
             // 未知模块 (00)
             const Code UNKNOWN = MakeCode(Module::Unknown, LogLevel::Fatal, 0x00, 0x000);
 

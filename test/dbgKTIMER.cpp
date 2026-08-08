@@ -3,8 +3,8 @@
  * @brief   KTIMER 计时器模块全功能测试
  *
  * 测试内容:
- *   1. SetTimer - 新建计时器（不同名字和单位）
- *   2. SetTimer - 重名覆盖（警告）
+ *   1. AddTimer - 新建计时器（不同名字和单位）
+ *   2. AddTimer - 重名覆盖（警告）
  *   3. 计时精度 - sleep 后验证时间
  *   4. PauseTimer - 暂停计时器
  *   5. PauseTimer - 暂停不存在的计时器（警告）
@@ -38,28 +38,28 @@ int main()
         "\"description\": \"KTIMER 计时器模块全功能测试\""
     )));
 
-    // ==================== 1. SetTimer 新建计时器 ====================
-    SECTION("1. SetTimer 新建计时器");
+    // ==================== 1. AddTimer 新建计时器 ====================
+    SECTION("1. AddTimer 新建计时器");
     {
-        SetTimer("render", TimeUnit::ms);
-        SetTimer("load",   TimeUnit::us);
-        SetTimer("init",   TimeUnit::ns);
-        SetTimer("total",  TimeUnit::s);
+        AddTimer("render", TimeUnit::ms);
+        AddTimer("load",   TimeUnit::us);
+        AddTimer("init",   TimeUnit::ns);
+        AddTimer("total",  TimeUnit::s);
         kout << "  已创建 4 个计时器: render(ms), load(us), init(ns), total(s)" << std::endl;
     }
 
-    // ==================== 2. SetTimer 重名覆盖 ====================
-    SECTION("2. SetTimer 重名覆盖");
+    // ==================== 2. AddTimer 重名覆盖 ====================
+    SECTION("2. AddTimer 重名覆盖");
     {
-        kout << "  >> SetTimer(\"render\", TimeUnit::ms)  (重名, 应触发警告)" << std::endl;
-        SetTimer("render", TimeUnit::ms);
+        kout << "  >> AddTimer(\"render\", TimeUnit::ms)  (重名, 应触发警告)" << std::endl;
+        AddTimer("render", TimeUnit::ms);
         kout << "  render 已被重置" << std::endl;
     }
 
     // ==================== 3. 计时精度 ====================
     SECTION("3. 计时精度验证");
     {
-        SetTimer("sleep100", TimeUnit::ms);
+        AddTimer("sleep100", TimeUnit::ms);
         kout << "  sleep 100ms ..." << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         PauseTimer("sleep100");
@@ -70,7 +70,7 @@ int main()
     // ==================== 4. PauseTimer 暂停 ====================
     SECTION("4. PauseTimer 暂停");
     {
-        SetTimer("work", TimeUnit::ms);
+        AddTimer("work", TimeUnit::ms);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
         PauseTimer("work");
         double t1 = GetTimer("work");
@@ -107,7 +107,7 @@ int main()
     // ==================== 8. StartTimer 运行中 ====================
     SECTION("8. StartTimer 运行中 (警告)");
     {
-        SetTimer("running", TimeUnit::ms);
+        AddTimer("running", TimeUnit::ms);
         kout << "  >> StartTimer(\"running\")  (运行中)" << std::endl;
         StartTimer("running");
         PauseTimer("running");
@@ -165,15 +165,15 @@ int main()
     {
         kout << "  模拟: 加载 -> 处理 -> 保存" << std::endl;
 
-        SetTimer("wf_load",   TimeUnit::ms);
+        AddTimer("wf_load",   TimeUnit::ms);
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
         PauseTimer("wf_load");
 
-        SetTimer("wf_process", TimeUnit::ms);
+        AddTimer("wf_process", TimeUnit::ms);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
         PauseTimer("wf_process");
 
-        SetTimer("wf_save",   TimeUnit::ms);
+        AddTimer("wf_save",   TimeUnit::ms);
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         PauseTimer("wf_save");
 

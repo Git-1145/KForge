@@ -15,6 +15,7 @@
 - [KFIO 文件读写模块](#kfio-文件读写模块)
 - [KCLI 命令行交互模块](#kcli-命令行交互模块)
 - [KTIMER 计时器模块](#ktimer-计时器模块)
+- [KBIGNUM 大数运算模块](#kbignum-大数运算模块)
 - [KSON 数据格式](#kson-数据格式)
 - [错误码速查表](#错误码速查表)
 - [快速上手](#快速上手)
@@ -29,6 +30,7 @@ KF
 ├── KSON         数据解析、节点树、路径访问
 ├── KFIO         文件读取
 ├── KTIMER       计时器管理
+├── KBIGNUM      大数运算
 └── KCLI         命令行 UI、链式 I/O
 ```
 
@@ -38,6 +40,7 @@ KF
 | `KSON` | `KF::KSON` | 解析模块简写 |
 | `KFIO` | `KF::KFIO` | 文件模块简写 |
 | `KTIMER` | `KF::KTIMER` | 计时模块简写 |
+| `KBIGNUM` | `KF::KBIGNUM` | 大数模块简写 |
 | `KCLI` | `KF::KCLI` | CLI 模块简写 |
 
 头文件底部通过 `using namespace KF::KLOGGER;` 将错误码、`Color`、`LogLevel`、`Module`、`MakeCode` 引入全局作用域，调用处无需前缀。
@@ -87,6 +90,7 @@ enum class LogLevel : uint32_t {
 | `Module::KSON` | `0x03` | 数据解析 |
 | `Module::KTIMER` | `0x04` | 计时 |
 | `Module::KCLI` | `0x05` | 命令行交互 |
+| `Module::KBIGNUM` | `0x02` | 大数运算 |
 
 ### MakeCode 错误码组装
 
@@ -515,10 +519,10 @@ enum class TimerState {
 
 ### 计时器功能函数
 
-#### SetTimer
+#### AddTimer
 
 ```cpp
-bool SetTimer(const std::string& name, TimeUnit unit);
+bool AddTimer(const std::string& name, TimeUnit unit);
 ```
 
 新建计时器（指定名字和单位），创建后立即开始计时。同名计时器已存在时覆盖并发出警告。
@@ -634,8 +638,8 @@ int main() {
     )));
 
     // 新建计时器（创建即开始计时）
-    SetTimer("render", TimeUnit::ms);
-    SetTimer("load",   TimeUnit::us);
+    AddTimer("render", TimeUnit::ms);
+    AddTimer("load",   TimeUnit::us);
 
     // 模拟工作
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -663,6 +667,120 @@ int main() {
 
     KEnd();
 }
+```
+
+---
+
+## KBIGNUM 大数运算模块
+
+**源文件**: `KBIGNUM.cpp` | **命名空间**: `KF::KBIGNUM`
+
+### 存储模型
+
+base = 10⁹，每个 `limb`（`uint32_t`）存储 9 位十进制数字。选择 10⁹ 而非 2³² 是为了简化 `ToStr` 的十进制输出。
+
+| 成员 | 类型 | 说明 |
+|------|------|------|
+| `limbs` | `vector<limb>` | 低位在前，`limbs[0]` 是最低 9 位 |
+| `isneg` | `bool` | 负数标志 |
+| `scale` | `size_t` | 小数位数（小数点后数字个数） |
+
+> `limbs` 默认初始化为 `{0}`，表示零值。
+
+### 类型别名
+
+```cpp
+using limb  = uint32_t;   // 基础分块（9 位十进制）
+using dlimb = uint64_t;   // 扩展分块（运算时防溢出）
+```
+
+### Normalize 字符串合法化
+
+```cpp
+std::string Normalize(const std::string& str);
+```
+
+将任意输入字符串规整为 `[+|-]digits[.digits]` 格式：
+
+- 提取首个 `-.+0123456789` 到末尾数字之间的有效字符
+- 去前导零（保留小数点前必要的 `0`）
+- 去小数点后尾随零
+- 多余小数点视为分隔符（取第二个点之前的部分）
+- 多余正负号做异或（`-` 偶数个 → 正，奇数个 → 负）
+- 全零或无有效数字返回 `"0"`
+
+| 输入 | 输出 |
+|------|------|
+| `000012340.3221000000` | `+12340.3221` |
+| `-.123.123.` | `-0.123123` |
+| `-0` | `0` |
+| `dw1-abca00432.432100` | `+100432.4321` |
+| `+42` | `+42` |
+
+### ToBig 字符串转大数
+
+```cpp
+static BigNum ToBig(const std::string& str);
+```
+
+输入为 Normalize 后的字符串。流程：
+
+1. `str[0]` 取符号位
+2. `find('.')` 定位小数点 → 计算 `scale`
+3. 跳过符号位和小数点，提取纯数字串 `digits`
+4. 从右往左**每九位截取一个 limb**（`substr` 批量截取，非逐字符拼接）
+5. 去除高位多余的零块
+6. 零值强制 `isneg = false`
+
+```cpp
+// 核心循环：九位九位截取
+dlimb pos = digits.size();
+while(pos > 0)
+{
+    dlimb start = (pos >= BASEEXP) ? (pos - BASEEXP) : 0;
+    res.limbs.push_back(std::stoll(digits.substr(start, pos - start)));
+    pos = start;
+}
+```
+
+### ToStr 大数转字符串
+
+```cpp
+std::string ToStr() const;
+```
+
+1. 零值直接返回 `"0"`
+2. 最高位 limb 不补零，其余 limb 左补零到 9 位
+3. 根据 `scale` 插入小数点（`scale >= digits.size()` 时补前导 `0.00...`）
+4. 负数加 `-` 前缀
+
+### 构造函数
+
+| 构造 | 说明 |
+|------|------|
+| `BigNum()` | 默认构造，零值 |
+| `BigNum(const std::string& str)` | 字符串构造（`Normalize` → `ToBig`） |
+| `BigNum(const dlimb& num)` | 数字构造（`to_string` → `ToBig`） |
+
+### 运算接口（待实现）
+
+| 分类 | 函数 |
+|------|------|
+| 内部绝对值运算 | `AbsAdd` `AbsSub` `AbsMul` `AbsDiv` `AbsMod` `AbsCmp` `AbsPow` |
+| 用户运算符 | `operator+ - * / %` `Pow` |
+| 比较运算符 | `operator== != < <= > >=` |
+| 输出 | `friend operator<<`（调用 `ToStr`） |
+
+### 使用示例
+
+```cpp
+#include "KF.hpp"
+using namespace KBIGNUM;
+
+BigNum a("123456789012345678901234567890");
+BigNum b("-0.0001");
+kout << a << "\n";    // 123456789012345678901234567890
+kout << b << "\n";    // -0.0001
 ```
 
 ---
@@ -759,6 +877,13 @@ KSON 是 KForge 自定义的类 JSON 数据格式。
 |------|------|------|------|
 | `KCLI_INPUT_INVALID` | `0x05201001` | Warning | 输入解析失败 |
 
+### KBIGNUM 模块 (02)
+
+| 常量 | 码值 | 等级 | 说明 |
+|------|------|------|------|
+| `KBIGNUM_MULPOINT` | `0x02201002` | Warning | 多余的小数点 |
+| `KBIGNUM_INVALIDCHAR` | `0x02201004` | Warning | 数字中含非法字符 |
+
 ### KTIMER 模块 (04)
 
 | 常量 | 码值 | 等级 | 说明 |
@@ -822,7 +947,7 @@ int main() {
 
 ```bat
 cl /EHsc /std:c++17 /utf-8 /I..\base ^
-    ..\base\KSON.cpp ..\base\KLOGGER.cpp ..\base\KFIO.cpp ..\base\KCLI.cpp ..\base\KTIMER.cpp ^
+    ..\base\KSON.cpp ..\base\KLOGGER.cpp ..\base\KFIO.cpp ..\base\KCLI.cpp ..\base\KTIMER.cpp ..\base\KBIGNUM.cpp ^
     main.cpp /Fe:app.exe
 ```
 
@@ -835,7 +960,8 @@ cl /EHsc /std:c++17 /utf-8 /I..\base ^
 | `dbgKFIO.cpp` | KFIO | ReadFileRaw 读取/验证、与 KSON 集成、空文件、Fatal 测试（读取不存在文件） |
 | `dbgKLOGGER.cpp` | KLOGGER | KLOG_INFO/WARNING/ERROR/FATAL 宏、各模块错误码、MakeCode 组装、Table 码表查询、LogLevel/Module 枚举、Color 常量展示 |
 | `dbgKCLI.cpp` | KCLI | kout/koutW/koutE/koutF 链式输出、临时换色、Color 常量展示、kin 链式输入、KOptions 菜单、从文件读取配置、kpause/KEnd |
-| `dbgKTIMER.cpp` | KTIMER | SetTimer 新建/重名覆盖、计时精度验证、PauseTimer/StartTimer 暂停恢复、错误处理（不存在/状态错误）、GetTimer、PrintTimer、PrintAllTimers、DeleteTimer、综合工作流、空表打印 |
+| `dbgKTIMER.cpp` | KTIMER | AddTimer 新建/重名覆盖、计时精度验证、PauseTimer/StartTimer 暂停恢复、错误处理（不存在/状态错误）、GetTimer、PrintTimer、PrintAllTimers、DeleteTimer、综合工作流、空表打印 |
+| `dbgKBIGNUM.cpp` | KBIGNUM | Normalize 合法化、ToBig+ToStr 往返测试、limbs/scale/isneg 验证、大整数/小数/边界值/非法输入 |
 
 ### 测试配置文件
 

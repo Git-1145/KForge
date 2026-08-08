@@ -72,6 +72,7 @@ namespace KF
             constexpr uint32_t KSON    = 0x03; // KSON 解析模块
             constexpr uint32_t KTIMER  = 0x04; // KTIMER 计时模块
             constexpr uint32_t KCLI    = 0x05; // KCLI 命令行交互模块
+            constexpr uint32_t KBIGNUM = 0x02; // 大数模块
         }
 
         /// @brief 由四段字段组装错误码，避免手写 8 位 16 进制而失手出错
@@ -132,7 +133,9 @@ namespace KF
         extern const Code KSON_PARSE_OBJUE;            // 解析错误 对象中出现非预期字符
         extern const Code KSON_PARSE_TRAIL;            // 解析警告 结尾有多余字符
         extern const Code KSON_TYPE_MISMATCH;          // AsSth 类型不匹配 FATAL
-
+        //KBIGNUM 模块 (06)
+        extern const Code KBIGNUM_MULPOINT;            // 解析警告 多余的小数点.
+        extern const Code KBIGNUM_INVALIDCHAR;        // 解析警告 数字中有不支持的非阿拉伯数字
         // 未知模块 (00)
         extern const Code UNKNOWN;
 
@@ -415,7 +418,7 @@ namespace KF
         /// @param name  计时器名称（唯一标识）
         /// @param unit  时间单位（ns/us/ms/s）
         /// @return true=新建成功，false=同名已存在（已覆盖，发出警告）
-        bool SetTimer(const std::string& name, TimeUnit unit);
+        bool AddTimer(const std::string& name, TimeUnit unit);
 
         /// @brief 暂停计时器（累计已运行时间）
         /// @return true=暂停成功，false=不存在或未在运行
@@ -439,12 +442,65 @@ namespace KF
         /// @brief 打印所有计时器信息（格式化表格，按名称排序）
         void PrintAllTimers();
     }
+    /// @brief 大数运算库
+    namespace KBIGNUM
+    {
+        using limb = uint32_t; // 基础分块
+        using dlimb = uint64_t; // 扩展分块 运算时会用
+        class BigNum
+        {
+            public:
+                std::vector<limb> limbs = {0}; // 存储 (无小数点 无符号)
+                /// @attention base = 10 ^ 9 ,之所以不用 2^32 是因为这 ToStr 太麻烦且太慢
+                bool isneg = false; // 是否为负数
+                size_t scale = 0; // 小数位数
+                
+                static BigNum ToBig(const std::string& str); // 字符串转大数
+                std::string   ToStr() const; // 大数转字符串
+
+                /// @brief 构造 支持空 字符串 数字
+                BigNum() = default;
+                BigNum(const std::string& str);// 用字符串构造
+                BigNum(const dlimb& num);// 用数字构造
+
+                /// @brief 面向内部的运算
+                BigNum AbsAdd(const BigNum& b) ;
+                BigNum AbsSub(const BigNum& b);
+                BigNum AbsMul(const BigNum& b);
+                BigNum AbsDiv(const BigNum& b);
+                BigNum AbsMod(const BigNum& b);
+                int    AbsCmp(const BigNum& b);
+                BigNum AbsPow(const BigNum& b);
+                /// @brief 面向用户的运算
+                BigNum operator+(const BigNum& b) const;
+                BigNum operator-(const BigNum& b) const;
+                BigNum operator*(const BigNum& b) const;
+                BigNum operator/(const BigNum& b) const;
+                BigNum operator%(const BigNum& b) const;
+                BigNum Pow(const BigNum& b) const;
+                /// @brief 比较 (由于这是c++ 17 所以不使用三目运算符)
+                bool operator==(const BigNum& b) const;
+                bool operator!=(const BigNum& b) const;
+                bool operator<(const BigNum& b) const;
+                bool operator<=(const BigNum& b) const;
+                bool operator>(const BigNum& b) const;
+                bool operator>=(const BigNum& b) const;
+
+                /// @brief 输出
+                friend std::ostream& operator<<(std::ostream& os, const BigNum& b)
+                {
+                    os << b.ToStr();
+                    return os;
+                }
+        };
+        std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0
+    }
 }
 namespace KSON = KF::KSON;
 namespace KLOG = KF::KLOGGER;
 namespace KFIO = KF::KFIO;
 namespace KCLI = KF::KCLI;
 namespace KTIMER = KF::KTIMER;
-
+namespace KBIGNUM = KF::KBIGNUM;
 constexpr size_t DEFAULT_RESIZE_STR_LEN = 64; // 默认KSON中字符串的分配长度 (超过这个长度会再次扩容)
 using namespace KF::KLOGGER;

@@ -6,7 +6,7 @@ using namespace KLOG;
  * @brief KTIMER 计时器模块实现
  *
  * 功能：
- *   - SetTimer(name, unit)    新建计时器（指定名字和单位），创建后立即开始计时
+ *   - AddTimer(name, unit)    新建计时器（指定名字和单位），创建后立即开始计时
  *   - PauseTimer(name)        暂停计时器（累计已运行时间）
  *   - StartTimer(name)        恢复已暂停的计时器
  *   - DeleteTimer(name)       删除计时器
@@ -136,7 +136,7 @@ namespace KF
         /// @param name  计时器名称（唯一标识）
         /// @param unit  时间单位（ns/us/ms/s）
         /// @return true=新建成功，false=同名已存在（已覆盖，发出警告）
-        bool SetTimer(const std::string& name, TimeUnit unit)
+        bool AddTimer(const std::string& name, TimeUnit unit)
         {
             bool existed = Timers().count(name) > 0;
             if (existed)
