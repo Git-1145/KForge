@@ -1,0 +1,37 @@
+@echo off
+setlocal enabledelayedexpansion
+echo ============================================
+echo   KForge - Build All
+echo ============================================
+echo.
+set "ROOT=%~dp0"
+set "ROOT=%ROOT:~0,-1%"
+echo [INFO] Running build scripts in test\ ...
+echo.
+for /r "%ROOT%\test" %%b in (build.bat) do (
+    if exist "%%b" (
+        echo ===== Building: %%~dpb =====
+        echo.
+        cd /d "%%~dpb"
+        call "%%b"
+        cd /d "%ROOT%"
+        echo.
+    )
+)
+echo [INFO] Running build scripts in study\ ...
+echo.
+for /r "%ROOT%\study" %%b in (build.bat) do (
+    if exist "%%b" (
+        echo ===== Building: %%~dpb =====
+        echo.
+        cd /d "%%~dpb"
+        call "%%b"
+        cd /d "%ROOT%"
+        echo.
+    )
+)
+echo [INFO] All builds complete.
+echo.
+pause
+endlocal
+exit /b 0

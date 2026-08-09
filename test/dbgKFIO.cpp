@@ -10,7 +10,7 @@
  *   5. Fatal 测试 - 读取不存在的文件 (最后执行, 会终止程序)
  */
 
-#include "KF.hpp"
+#include "../base/KF.hpp"
 #include <cstdio>
 using namespace KFIO;
 using namespace KSON;
@@ -27,7 +27,7 @@ using namespace KCLI;
 
 int main()
 {
-    kbegin(read(Preprocess(
+    KBegin(read(Preprocess(
         "\"title\": \"dbgKFIO 模块测试\","
         "\"description\": \"KFIO 文件读写模块全功能测试\""
     )));
@@ -35,7 +35,7 @@ int main()
     // ==================== 1. ReadFileRaw - 读取存在的文件 ====================
     SECTION("1. ReadFileRaw - 读取存在的文件");
     {
-        std::string content = ReadFileRaw("test_cfg.kson");
+        std::string content = ReadFileRaw("cfg.kson");
         CHECK(!content.empty(), "文件内容非空");
         SHOW("文件大小", content.size());
         kout << "  前 80 字符:" << std::endl;
@@ -45,7 +45,7 @@ int main()
     // ==================== 2. ReadFileRaw - 内容验证 ====================
     SECTION("2. ReadFileRaw - 内容验证");
     {
-        std::string content = ReadFileRaw("test_cfg.kson");
+        std::string content = ReadFileRaw("cfg.kson");
 
         // ReadFileRaw 不做任何处理, 注释和空白都保留
         CHECK(content.find("KSON") != std::string::npos, "内容包含 'KSON'");
@@ -73,19 +73,19 @@ int main()
     SECTION("4. 与 KSON 集成");
     {
         // 方式一: ReadKsonFile 一站式 (读取 + 预处理 + 解析)
-        kson doc1 = ReadKsonFile("test_cfg.kson");
+        kson doc1 = ReadKsonFile("cfg.kson");
         CHECK(doc1.Exists(), "ReadKsonFile 解析成功");
         SHOW("  intro.name", doc1["intro"]["name"].Auto());
 
         // 方式二: 手动流程 (ReadFileRaw + Preprocess + read)
-        std::string raw = ReadFileRaw("test_cfg.kson");
+        std::string raw = ReadFileRaw("cfg.kson");
         std::string processed = Preprocess(raw);
         kson doc2 = read(processed);
         CHECK(doc2.Exists(), "手动流程解析成功");
         SHOW("  intro.name", doc2["intro"]["name"].Auto());
 
         // 方式三: NodePtr::ParseFile
-        kson doc3 = NodePtr::ParseFile("test_cfg.kson");
+        kson doc3 = NodePtr::ParseFile("cfg.kson");
         CHECK(doc3.Exists(), "NodePtr::ParseFile 解析成功");
 
         // 验证三种方式结果一致

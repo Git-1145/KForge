@@ -49,5 +49,24 @@ int main()
         else
             kout << "  [FAIL] round-trip: expected " << normalized << "\n\n";
     }
+    /// @brief 测试 AbsAdd AbsSub函数
+    auto root3 = file["bignum"]["absCaculate"];
+    for(size_t i = 0 ;i<root3.size();i++)
+    {
+        AddTimer("absCaculate",TimeUnit::us);
+        BigNum A (root3["A"][i].Str());
+        BigNum B (root3["B"][i].Str());
+        kout << A << " + " << B <<" -> " << AbsAdd(A,B) << "\n";
+        kout << A << " - " << B <<" -> " << AbsSub(A,B) << "\n";
+        PrintTimer("absCaculate");
+        DeleteTimer("absCaculate");
+    }
+    /// @brief 测试科学计数法 和 大数B
+    auto root4 = file["kson_bignum"];
+    for(size_t i = 0 ;i<root4.size();i++)
+    {
+        auto a = root4[i].Auto();
+        kout << a << "\n";
+    }
     KEnd();
 }

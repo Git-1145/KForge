@@ -71,6 +71,7 @@ namespace KF
         {
             *this = ToBig(std::to_string(num));
         }
+        /// @brief 将任意字符串转换成合法的数字 
         std::string Normalize(const std::string& str)
         {
             ///@date 2026-08-08
@@ -152,7 +153,7 @@ namespace KF
             return std::move(res);
         }
 
-        /// @brief 将字符串转换为BigNum（九位九位批量截取）
+        /// @brief 将字符串转换为BigNum
         BigNum BigNum::ToBig(const std::string& str)
         {
             BigNum res;
@@ -200,6 +201,7 @@ namespace KF
 
             return res;
         }
+        /// @brief 将BigNum转换为字符串 
 
         std::string BigNum::ToStr() const
         {
@@ -230,6 +232,72 @@ namespace KF
             if(isneg)
                 result = "-" + result;
             return result;
+        }
+        
+        /// @brief 大数比较(无符号)
+        slimb AbsCmp(const BigNum& a,const BigNum& b)
+        {
+            if(a.limbs.size() > b.limbs.size()) // 位数 a比b多 a大
+                return 1;
+            else if(a.limbs.size() < b.limbs.size())// b大
+                return -1;
+            else // 位数相等
+            {
+                for(int i = static_cast<int>(a.limbs.size()) - 1; i >= 0; i--) //逐位看 
+                {
+                    if(a.limbs[i] > b.limbs[i])
+                        return 1;
+                    else if(a.limbs[i] < b.limbs[i])
+                        return -1;
+                }
+            }
+            return 0;// 相等
+        }
+
+        /// @brief 内部大数加法 (无符号)
+        BigNum AbsAdd(const BigNum& a,const BigNum& b)
+        {
+            BigNum res;
+            res.limbs.resize((std::max)(a.limbs.size(), b.limbs.size()) + 1);
+            for(size_t i = 0; i < res.limbs.size(); i++)
+            {
+                //自动补 0
+                res.limbs[i] = (i < a.limbs.size() ? a.limbs[i] : 0) + (i < b.limbs.size() ? b.limbs[i] : 0);
+                if(res.limbs[i] >= BASE)
+                {
+                    res.limbs[i] -= BASE;
+                    res.limbs[i + 1]++;
+                }
+            }
+            // 删除高位 0
+            while(res.limbs.size() > 1 && res.limbs.back() == 0)
+                res.limbs.pop_back();
+            return std::move(res);
+        }
+        /// @brief  大数相减(无符号)
+        BigNum AbsSub(const BigNum& a,const BigNum& b)
+        {
+            /// @attention a >= b
+            BigNum res;
+            if(a < b)
+                return AbsSub(b, a);
+            res.limbs.resize(a.limbs.size());
+            for(size_t i = 0; i < res.limbs.size(); i++)
+            {
+                slimb diff = (i < a.limbs.size() ? a.limbs[i] : 0) - (i < b.limbs.size() ? b.limbs[i] : 0);
+                /// @brief 差 可能是负数 所以是signed limb
+                if(diff < 0)
+                {
+                    res.limbs[i] += BASE;
+                    res.limbs[i + 1]--;
+                }
+                else
+                    res.limbs[i] = diff;
+                /// @brief 删除高位 0
+                while(res.limbs.size() > 1 && res.limbs.back() == 0)
+                    res.limbs.pop_back();
+            }
+            return std::move(res);
         }
     }
 }

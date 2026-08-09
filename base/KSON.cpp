@@ -30,6 +30,7 @@ namespace KF
         Node::Node(bool val) noexcept : Data(val) {}        // 从 bool 构造，类型为 kBool
         Node::Node(long long val) noexcept : Data(val) {}   // 从 long long 构造，类型为 kInt
         Node::Node(double val) noexcept : Data(val) {}      // 从 double 构造，类型为 kDec
+        Node::Node(KBIGNUM::BigNum val) noexcept : Data(std::move(val)) {}  // 从 BigNum 构造，类型为 kBig
         Node::Node(std::string val) noexcept : Data(std::move(val)) {}  // 从 string 构造，类型为 kStr
         Node::Node(std::vector<Node> val) : Data(std::move(val)) {}     // 从数组构造，类型为 kArr
         Node::Node(std::vector<std::pair<std::string, Node>> val) : Data(std::move(val)) {}  // 从对象构造，类型为 kObj
@@ -45,10 +46,10 @@ namespace KF
                 else if constexpr (std::is_same_v<T, bool>) return NodeType::kBool;
                 else if constexpr (std::is_same_v<T, long long>) return NodeType::kInt;
                 else if constexpr (std::is_same_v<T, double>) return NodeType::kDec;
+                else if constexpr (std::is_same_v<T, KBIGNUM::BigNum>) return NodeType::kBig;
                 else if constexpr (std::is_same_v<T, std::string>) return NodeType::kStr;
                 else if constexpr (std::is_same_v<T, arr_t>) return NodeType::kArr;
-                else if constexpr (std::is_same_v<T, obj_t>) return NodeType::kObj;
-                return NodeType::kNull;
+                else return NodeType::kObj;
             }, Data);
         }
         /// @brief 判断是否为 null（空值）
@@ -59,8 +60,10 @@ namespace KF
         bool Node::IsInt()     const noexcept { return type() == NodeType::kInt; }
         /// @brief 判断是否为浮点数
         bool Node::IsDec()     const noexcept { return type() == NodeType::kDec; }
-        /// @brief 判断是否为数字（整数或浮点数）
-        bool Node::IsNumber()  const noexcept { return IsInt() || IsDec(); }
+        /// @brief 判断是否为大数
+        bool Node::IsBig()     const noexcept { return type() == NodeType::kBig; }
+        /// @brief 判断是否为数字（整数、浮点数或大数）
+        bool Node::IsNumber()  const noexcept { return IsInt() || IsDec() || IsBig(); }
         /// @brief 判断是否为字符串
         bool Node::IsString()  const noexcept { return type() == NodeType::kStr; }
         /// @brief 判断是否为数组
@@ -84,6 +87,11 @@ namespace KF
             if (IsInt()) return static_cast<double>(AsInt());  // 整数可隐式转为浮点
             if (!IsDec()) KLOG_ERROR(KSON_TYPE_MISMATCH, "Node is not decimal");
             return std::get<double>(Data);
+        }
+        /// @brief 取大数引用
+        const KBIGNUM::BigNum& Node::AsBig() const {
+            if (!IsBig()) KLOG_ERROR(KSON_TYPE_MISMATCH, "Node is not big number");
+            return std::get<KBIGNUM::BigNum>(Data);
         }
         /// @brief 取字符串
         std::string_view Node::AsStr() const {
@@ -216,9 +224,90 @@ namespace KF
                     res.resize(WritePtr);//去掉多余的容量
                     if(res.size() == 1) //如果数字为空
                         res="0";
+
+                    // 科学计数法 → 展开为完整十进制字符串 → BigNum
+                    if(type == 2)
+                    {
+                        // res 形如 "+1.23e5" 或 "-1.23e-5"
+                        size_t ePos = res.find('e');
+                        if(ePos == std::string::npos) ePos = res.find('E');
+                        std::string mantissa = res.substr(0, ePos);
+                        std::string expStr   = res.substr(ePos + 1);
+
+                        // 解析指数
+                        long long exponent = 0;
+                        try { exponent = std::stoll(expStr); }
+                        catch(const std::exception&) { KLOG_ERROR(KSON_PARSE_NUMOR, "bad exponent: " + expStr); }
+
+                        // 提取纯数字串（移除符号和小数点）
+                        bool mantNeg = (mantissa[0] == '-');
+                        size_t dotPos = mantissa.find('.');
+                        std::string mantDigits;
+                        for(size_t i = 1; i < mantissa.size(); i++)
+                            if(mantissa[i] != '.') mantDigits += mantissa[i];
+
+                        // 计算小数点后的位数（如果 mantissa 有小数点）
+                        size_t decDigits = (dotPos == std::string::npos) ? 0
+                                          : (mantissa.size() - dotPos - 1);
+
+                        // 计算完整字符串
+                        std::string fullStr;
+                        if(exponent >= 0)
+                        {
+                            // 小数点右移
+                            if((size_t)exponent >= decDigits)
+                                fullStr = mantDigits + std::string((size_t)exponent - decDigits, '0');
+                            else
+                            {
+                                size_t insPos = mantDigits.size() - (decDigits - (size_t)exponent);
+                                fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
+                            }
+                        }
+                        else
+                        {
+                            // 小数点左移（负指数）
+                            size_t intDigits = (dotPos != std::string::npos && dotPos > 1) ? dotPos - 1 : mantDigits.size();
+                            size_t totalShift = (size_t)(-exponent);
+                            if(totalShift <= intDigits)
+                            {
+                                size_t insPos = intDigits - totalShift;
+                                if(insPos == 0)
+                                    fullStr = "0." + mantDigits;
+                                else
+                                    fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
+                            }
+                            else
+                            {
+                                fullStr = "0." + std::string(totalShift - intDigits, '0') + mantDigits;
+                            }
+                        }
+
+                        if(mantNeg) fullStr = "-" + fullStr;
+                        else        fullStr = "+" + fullStr;
+
+                        // 用 Normalize 清理 + ToBig 转换
+                        return Node(KBIGNUM::BigNum::ToBig(KBIGNUM::Normalize(fullStr)));
+                    }
+
                     switch (type)
                     {
                         case 0: //整数
+                        {
+                            // 检查是否超出 int64_t 范围
+                            std::string numStr = res.substr(1); // 去掉符号位
+                            bool fitsInt64 = true;
+                            if(numStr.size() > 19)
+                                fitsInt64 = false;
+                            else if(numStr.size() == 19)
+                            {
+                                std::string maxInt64 = "9223372036854775807";
+                                if(numStr > maxInt64) fitsInt64 = false;
+                            }
+                            if(!fitsInt64)
+                            {
+                                // 超出 int64_t 范围 → 自动切换为 BigNum
+                                return Node(KBIGNUM::BigNum::ToBig(res));
+                            }
                             // stoll 在数字非法/溢出时会抛 invalid_argument / out_of_range，必须捕获
                             try { return Node(std::stoll(res)); }
                             catch (const std::exception& e)
@@ -226,26 +315,9 @@ namespace KF
                                 KLOG_ERROR(KSON_PARSE_NUMOR, res + " | " + e.what());
                                 return Node(0LL);
                             }
+                        }
                         case 1: //小数 支持 .1 -1.
                         {
-                            // 精度检查：统计有效数字位数（去掉符号和小数点）
-                            // double 最多能精确表示 15-17 位十进制有效数字
-                            size_t sigDigits = 0;
-                            bool leadingZero = true;
-                            for (size_t i = 0; i < res.size(); i++)
-                            {
-                                char c = res[i];
-                                if (c == '+' || c == '-' || c == '.') continue;
-                                if (c == '0' && leadingZero) continue;
-                                leadingZero = false;
-                                sigDigits++;
-                            }
-                            // 尾部的 0 也是有效数字（在小数点后）
-                            if (sigDigits > std::numeric_limits<double>::max_digits10)
-                                KLOG_ERROR(KSON_PARSE_NUM_PRECISION,
-                                    res + " has " + std::to_string(sigDigits) + " sig digits, double max is " +
-                                    std::to_string(std::numeric_limits<double>::max_digits10));
-
                             try { return Node(std::stod(res)); }
                             catch (const std::exception& e)
                             {
@@ -253,7 +325,9 @@ namespace KF
                                 return Node(0.0);
                             }
                         }
-                        default: //暂不支持科学计数和大数
+                        case 3: //大数（'B'后缀强制）
+                            return Node(KBIGNUM::BigNum::ToBig(res));
+                        default: //暂不支持的数字类型
                             KLOG_ERROR(KSON_PARSE_NUM_USTYPE,"");
                             try { return Node(std::stoll(res)); }
                             catch (const std::exception& e)
@@ -288,6 +362,36 @@ namespace KF
                             dot = true;
                             res[WritePtr++] = CHAR_POINT;
                         }
+                        ReadPtr++;
+                    }
+                    else if(str[ReadPtr] == 'e' || str[ReadPtr] == 'E') //科学计数法
+                    {
+                        // 只有后面紧跟数字（或符号+数字）才算科学计数法
+                        size_t peek = ReadPtr + 1;
+                        if(peek < str.size() && (str[peek] == CHAR_NEG || str[peek] == CHAR_POS))
+                            peek++;
+                        if(peek < str.size() && isdigit(static_cast<unsigned char>(str[peek])))
+                        {
+                            type = 2;
+                            res[WritePtr++] = str[ReadPtr++];
+                            // 消费指数部分的符号位（e+5 或 e-5）
+                            if(ReadPtr < str.size() && (str[ReadPtr] == CHAR_NEG || str[ReadPtr] == CHAR_POS))
+                            {
+                                if(WritePtr >= DEFAULT_RESIZE_STR_LEN * NumOfResize)
+                                    res.resize(DEFAULT_RESIZE_STR_LEN * ++NumOfResize);
+                                res[WritePtr++] = str[ReadPtr++];
+                            }
+                        }
+                        else
+                        {
+                            // 不是科学计数法，当作普通字符跳过
+                            KLOG_WARNING(KSON_PARSE_NUM_UE,"");
+                            ReadPtr++;
+                        }
+                    }
+                    else if(str[ReadPtr] == 'B') //强制 BigNum 后缀
+                    {
+                        type = 3;
                         ReadPtr++;
                     }
                     /// @attention 退出窗口
@@ -568,6 +672,7 @@ namespace KF
         std::string NodePtr::Str()  const { return std::string(Resolve()->AsStr()); }
         long long   NodePtr::Int()  const { return Resolve()->AsInt(); }
         double      NodePtr::Dec()  const { return Resolve()->AsDec(); }
+        KBIGNUM::BigNum NodePtr::AsBig() const { return Resolve()->AsBig(); }
         bool        NodePtr::Bool() const { return Resolve()->AsBool(); }
         std::size_t NodePtr::Size() const { return Resolve()->size(); }
         bool        NodePtr::Exists() const { return TryResolve() != nullptr; }
@@ -589,6 +694,8 @@ namespace KF
                     return n->AsBool() ? "true" : "false";
                 case NodeType::kInt:
                     return std::to_string(n->AsInt());
+                case NodeType::kBig:
+                    return n->AsBig().ToStr();
                 case NodeType::kDec:
                 {
                     // 用 ostringstream + setprecision(15) 保留完整精度，

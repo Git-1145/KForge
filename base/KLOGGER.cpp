@@ -136,7 +136,7 @@ namespace KF
             const Code KSON_PARSE_NUM_USTYPE       = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x006);
             const Code KSON_PARSE_ESCAPE_SPECIAL   = MakeCode(Module::KSON, LogLevel::Warning, 0x01, 0x007);
             const Code KSON_PARSE_UNFINISHED_ESCAPE= MakeCode(Module::KSON, LogLevel::Fatal,   0x01, 0x00A);
-            const Code KSON_PARSE_NUM_PRECISION    = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x00B);
+            const Code KSON_PARSE_BIG_EXP          = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x00C);
             const Code KSON_PARSE_VAL_END          = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x0AA);
             const Code KSON_PARSE_VAL_ERROR        = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x0AC);
             const Code KSON_PARSE_ARR_BEGIN        = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x0AE);
@@ -182,7 +182,7 @@ namespace KF
                 {KSON_PARSE_NUM_USTYPE,         "KSON Parse number, return an unsupported number type"},
                 {KSON_PARSE_ESCAPE_SPECIAL,     "KSON Parse string, There's an invalid char following the escape char"},
                 {KSON_PARSE_UNFINISHED_ESCAPE,  "KSON Parse string, out of range when reading an escape"},
-                {KSON_PARSE_NUM_PRECISION,      "KSON Parse number, decimal precision exceeds double capacity"},
+                {KSON_PARSE_BIG_EXP,            "KSON Parse number, exponent too large for scientific notation"},
                 {KSON_PARSE_VAL_END,            "KSON Parse value, the fileRead is ended"},
                 {KSON_PARSE_VAL_ERROR,          "KSON Parse value, error occured"},
                 {KSON_PARSE_ARR_BEGIN,          "KSON Parse array, expecting a opening bracket"},

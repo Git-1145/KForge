@@ -122,7 +122,7 @@ namespace KF
         extern const Code KSON_PARSE_NUM_USTYPE;       // 解析错误 返回暂不支持的数字类型
         extern const Code KSON_PARSE_ESCAPE_SPECIAL;   // 解析警告 转义字符后接非特殊字符
         extern const Code KSON_PARSE_UNFINISHED_ESCAPE;// 解析错误 解析转义时越界了
-        extern const Code KSON_PARSE_NUM_PRECISION;    // 解析错误 小数精度超出 double 可表示范围
+        extern const Code KSON_PARSE_BIG_EXP;          // 解析错误 科学计数法指数过大
         extern const Code KSON_PARSE_VAL_END;          // 解析错误 读到文件末尾仍缺值
         extern const Code KSON_PARSE_VAL_ERROR;        // 解析错误 值类型无法识别
         extern const Code KSON_PARSE_ARR_BEGIN;        // 解析错误 期望数组起始 [
@@ -157,6 +157,66 @@ namespace KF
             constexpr const char* Bold    = "\033[1m";
         }
     }
+    /// @brief 大数运算库
+    namespace KBIGNUM
+    {
+        using limb = uint32_t; // 基础分块
+        using dlimb = uint64_t; // double limb
+        using slimb = int32_t; // signed limb
+        using sdlimb = int64_t; // signed double limb
+
+        class BigNum; // 前向声明，供自由函数签名使用
+
+        /// @brief 面向内部的运算（自由函数）
+        slimb  AbsCmp(const BigNum& a, const BigNum& b); // 1 a>b ; 0 a=b; -1 a<b
+        BigNum AbsAdd(const BigNum& a, const BigNum& b);
+        BigNum AbsSub(const BigNum& a, const BigNum& b);
+        BigNum AbsMul(const BigNum& a, const BigNum& b);
+        BigNum AbsDiv(const BigNum& a, const BigNum& b);
+        BigNum AbsMod(const BigNum& a, const BigNum& b);
+        BigNum AbsPow(const BigNum& a, const BigNum& b);
+
+        class BigNum
+        {
+            public:
+                std::vector<limb> limbs = {0}; // 存储 (无小数点 无符号)
+                /// @attention base = 10 ^ 9 ,之所以不用 2^32 是因为这 ToStr 太麻烦且太慢
+                bool isneg = false; // 是否为负数
+                size_t scale = 0; // 小数位数
+                
+                static BigNum ToBig(const std::string& str); // 字符串转大数
+                std::string   ToStr() const; // 大数转字符串
+
+                /// @brief 构造 支持空 字符串 数字
+                BigNum() = default;
+                BigNum(const std::string& str);// 用字符串构造
+                BigNum(const dlimb& num);// 用数字构造
+
+                /// @brief 面向用户的运算
+                BigNum operator+(const BigNum& b) const;
+                BigNum operator-(const BigNum& b) const;
+                BigNum operator*(const BigNum& b) const;
+                BigNum operator/(const BigNum& b) const;
+                BigNum operator%(const BigNum& b) const;
+                BigNum Pow(const BigNum& b) const;
+                /// @brief 比较 (由于这是c++ 17 所以不使用三目运算符)
+                bool operator==(const BigNum& b) const{return !(*this < b) && !(b < *this);}
+                bool operator!=(const BigNum& b) const{return (*this < b) || (b < *this);}
+                bool operator<(const BigNum& b) const {if(isneg && !b.isneg) return true; else if(!isneg && b.isneg) return false; else return AbsCmp(*this,b) < 0; }
+                bool operator<=(const BigNum& b) const {return (*this < b) || (*this == b);}
+                bool operator>(const BigNum& b) const {return !(*this <= b);}
+                bool operator>=(const BigNum& b) const{return !(*this < b);}
+
+                /// @brief 输出
+                friend std::ostream& operator<<(std::ostream& os, const BigNum& b)
+                {
+                    os << b.ToStr();
+                    return os;
+                }
+        };
+        std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0
+    }
+
     namespace KSON
     {
         class NodePtr;
@@ -164,6 +224,7 @@ namespace KF
         {
             kInt, // Integer 整数
             kDec, // Decimal 浮点数
+            kBig, // BigNum 大数
             kStr, // String 字符串
             kBool, // Boolean 布尔值
             kArr, // Array 数组
@@ -178,6 +239,7 @@ namespace KF
                 explicit Node(bool val) noexcept;
                 explicit Node(long long val) noexcept;
                 explicit Node(double val) noexcept;
+                explicit Node(KBIGNUM::BigNum val) noexcept;
                 explicit Node(std::string val) noexcept;
                 explicit Node(std::vector<Node> val);
                 explicit Node(std::vector<std::pair<std::string,Node>> val);
@@ -188,7 +250,8 @@ namespace KF
                 bool IsBool()    const noexcept;
                 bool IsInt()     const noexcept;
                 bool IsDec()     const noexcept;
-                bool IsNumber()  const noexcept;  // int 或 dec
+                bool IsBig()     const noexcept;
+                bool IsNumber()  const noexcept;  // int 或 dec 或 big
                 bool IsString()  const noexcept;
                 bool IsArray()   const noexcept;
                 bool IsObject()  const noexcept;
@@ -197,6 +260,7 @@ namespace KF
                 bool             AsBool()   const;
                 long long        AsInt()    const;
                 double           AsDec() const;
+                const KBIGNUM::BigNum& AsBig() const;
                 std::string_view AsStr() const;
                 const std::vector<Node>&     AsArr()  const;
                 const std::vector<std::pair<std::string,Node>>&     AsObj() const;
@@ -217,6 +281,7 @@ namespace KF
                     using storage_t = std::variant< 
                         std::monostate,
                         bool,std::string,double,long long,
+                        KBIGNUM::BigNum,
                         arr_t,obj_t>;
 
                     storage_t Data;
@@ -269,6 +334,7 @@ namespace KF
                 std::string Str() const;
                 long long Int() const;
                 double Dec() const;
+                KBIGNUM::BigNum AsBig() const;
                 bool Bool() const;
                 std::size_t Size() const;
                 std::size_t size() const;  // 小写别名，等价于 Size()，方便 arr.size() 风格
@@ -442,60 +508,7 @@ namespace KF
         /// @brief 打印所有计时器信息（格式化表格，按名称排序）
         void PrintAllTimers();
     }
-    /// @brief 大数运算库
-    namespace KBIGNUM
-    {
-        using limb = uint32_t; // 基础分块
-        using dlimb = uint64_t; // 扩展分块 运算时会用
-        class BigNum
-        {
-            public:
-                std::vector<limb> limbs = {0}; // 存储 (无小数点 无符号)
-                /// @attention base = 10 ^ 9 ,之所以不用 2^32 是因为这 ToStr 太麻烦且太慢
-                bool isneg = false; // 是否为负数
-                size_t scale = 0; // 小数位数
-                
-                static BigNum ToBig(const std::string& str); // 字符串转大数
-                std::string   ToStr() const; // 大数转字符串
-
-                /// @brief 构造 支持空 字符串 数字
-                BigNum() = default;
-                BigNum(const std::string& str);// 用字符串构造
-                BigNum(const dlimb& num);// 用数字构造
-
-                /// @brief 面向内部的运算
-                BigNum AbsAdd(const BigNum& b) ;
-                BigNum AbsSub(const BigNum& b);
-                BigNum AbsMul(const BigNum& b);
-                BigNum AbsDiv(const BigNum& b);
-                BigNum AbsMod(const BigNum& b);
-                int    AbsCmp(const BigNum& b);
-                BigNum AbsPow(const BigNum& b);
-                /// @brief 面向用户的运算
-                BigNum operator+(const BigNum& b) const;
-                BigNum operator-(const BigNum& b) const;
-                BigNum operator*(const BigNum& b) const;
-                BigNum operator/(const BigNum& b) const;
-                BigNum operator%(const BigNum& b) const;
-                BigNum Pow(const BigNum& b) const;
-                /// @brief 比较 (由于这是c++ 17 所以不使用三目运算符)
-                bool operator==(const BigNum& b) const;
-                bool operator!=(const BigNum& b) const;
-                bool operator<(const BigNum& b) const;
-                bool operator<=(const BigNum& b) const;
-                bool operator>(const BigNum& b) const;
-                bool operator>=(const BigNum& b) const;
-
-                /// @brief 输出
-                friend std::ostream& operator<<(std::ostream& os, const BigNum& b)
-                {
-                    os << b.ToStr();
-                    return os;
-                }
-        };
-        std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0
     }
-}
 namespace KSON = KF::KSON;
 namespace KLOG = KF::KLOGGER;
 namespace KFIO = KF::KFIO;

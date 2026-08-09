@@ -21,7 +21,7 @@
  *  16.  错误条件 (警告级)
  */
 
-#include "KF.hpp"
+#include "../base/KF.hpp"
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
@@ -37,7 +37,7 @@ using namespace KCLI;
 
 int main()
 {
-    kbegin(read(Preprocess(
+    KBegin(read(Preprocess(
         "\"title\": \"dbgKSON 模块测试\","
         "\"description\": \"KSON 解析模块全功能测试\""
     )));
@@ -82,22 +82,22 @@ int main()
     SECTION("2. 文件解析");
     {
         // ReadKsonFile: 一站式 读取 + 预处理 + 解析
-        kson doc = ReadKsonFile("test_cfg.kson");
-        CHECK(doc.Exists(), "ReadKsonFile 读取 test_cfg.kson");
+        kson doc = ReadKsonFile("cfg.kson");
+        CHECK(doc.Exists(), "ReadKsonFile 读取 cfg.kson");
         SHOW("intro.name",    doc["intro"]["name"].Auto());
         SHOW("intro.version", doc["intro"]["version"].Auto());
 
         // NodePtr::ParseFile 静态工厂
-        kson doc2 = NodePtr::ParseFile("test_cfg.kson");
-        CHECK(doc2.Exists(), "NodePtr::ParseFile 读取 test_cfg.kson");
+        kson doc2 = NodePtr::ParseFile("cfg.kson");
+        CHECK(doc2.Exists(), "NodePtr::ParseFile 读取 cfg.kson");
 
         // 手动流程: ReadFileRaw + Preprocess + read
-        kson doc3 = read(Preprocess(ReadFileRaw("test_cfg.kson")));
-        CHECK(doc3.Exists(), "手动流程读取 test_cfg.kson");
+        kson doc3 = read(Preprocess(ReadFileRaw("cfg.kson")));
+        CHECK(doc3.Exists(), "手动流程读取 cfg.kson");
     }
 
     // 后续测试统一使用 ReadKsonFile 读取的 doc
-    kson doc = ReadKsonFile("test_cfg.kson");
+    kson doc = ReadKsonFile("cfg.kson");
 
     // ==================== 3. 节点类型判断 ====================
     SECTION("3. 节点类型判断");
@@ -297,7 +297,7 @@ int main()
     // ==================== 11. 注释 / 尾随逗号 ====================
     SECTION("11. 注释 / 尾随逗号");
     {
-        // test_cfg.kson 本身包含注释和尾随逗号
+        // cfg.kson 本身包含注释和尾随逗号
         CHECK(doc.Exists(), "含注释的文件解析成功");
 
         // 尾随逗号 - 数组
@@ -393,13 +393,77 @@ int main()
         // 无效转义 (Warning)
         kout << "  >> 无效转义 (KSON_PARSE_ESCAPE_SPECIAL)" << std::endl;
         kson badesc = read(Preprocess("\"x\": \"bad\\xescape\""));
+    }
 
-        // 精度超限 (Error)
-        kout << "  >> 精度超限 (KSON_PARSE_NUM_PRECISION)" << std::endl;
-        kson precision = read(Preprocess("\"x\": 1.12345678901234567890"));
+    // ==================== 17. BigNum / 科学计数法 ====================
+    SECTION("17. BigNum / 科学计数法");
+    {
+        // testu: 使用 cfg.kson 中的 kson_bignum 数据
+        kson bn = doc["kson_bignum"];
+
+        // int64 范围内 → 普通整数
+        kout << "  >> int64_max (普通整数)" << std::endl;
+        const Node* int64max = bn["int64_max"].TryResolve();
+        CHECK(int64max && int64max->IsInt(), "int64_max 是 Int 类型");
+        CHECK(int64max->AsInt() == 9223372036854775807LL, "int64_max 值正确");
+
+        // 超出 int64 → 自动 BigNum
+        kout << "  >> overflow_big (自动转 BigNum)" << std::endl;
+        const Node* obig = bn["overflow_big"].TryResolve();
+        CHECK(obig && obig->IsBig(), "overflow_big 是 BigNum 类型");
+        CHECK(obig->AsBig().ToStr() == "123456789012345678901234567890", "overflow_big 值正确");
+
+        // 负大数
+        kout << "  >> negative_big (负大数)" << std::endl;
+        const Node* nbig = bn["negative_big"].TryResolve();
+        CHECK(nbig && nbig->IsBig(), "negative_big 是 BigNum 类型");
+        CHECK(nbig->AsBig().isneg == true, "negative_big 为负数");
+        SHOW("  negative_big = ", nbig->AsBig().ToStr());
+
+        // 科学计数法 → 自动 BigNum
+        kout << "  >> sci_big (科学计数法 1.23e50)" << std::endl;
+        const Node* sci = bn["sci_big"].TryResolve();
+        CHECK(sci && sci->IsBig(), "sci_big 是 BigNum 类型");
+        SHOW("  sci_big = ", sci->AsBig().ToStr());
+
+        // 小科学计数法
+        kout << "  >> sci_small (科学计数法 1.23e-10)" << std::endl;
+        const Node* sci_s = bn["sci_small"].TryResolve();
+        CHECK(sci_s && sci_s->IsBig(), "sci_small 是 BigNum 类型");
+        SHOW("  sci_small = ", sci_s->AsBig().ToStr());
+
+        // 负科学计数法
+        kout << "  >> sci_neg (科学计数法 -5e20)" << std::endl;
+        const Node* sci_n = bn["sci_neg"].TryResolve();
+        CHECK(sci_n && sci_n->IsBig(), "sci_neg 是 BigNum 类型");
+        SHOW("  sci_neg = ", sci_n->AsBig().ToStr());
+
+        // 'B' 后缀强制 BigNum
+        kout << "  >> big_suffix (123456789B)" << std::endl;
+        const Node* bs = bn["big_suffix"].TryResolve();
+        CHECK(bs && bs->IsBig(), "big_suffix 是 BigNum 类型");
+        SHOW("  big_suffix = ", bs->AsBig().ToStr());
+
+        // 负 'B' 后缀
+        kout << "  >> neg_big_suffix (-987654321B)" << std::endl;
+        const Node* nbs = bn["neg_big_suffix"].TryResolve();
+        CHECK(nbs && nbs->IsBig(), "neg_big_suffix 是 BigNum 类型");
+        CHECK(nbs->AsBig().isneg == true, "neg_big_suffix 为负数");
+        SHOW("  neg_big_suffix = ", nbs->AsBig().ToStr());
+
+        // 科学计数法 3e25 → 自动 BigNum
+        kout << "  >> sci_auto (3e25)" << std::endl;
+        const Node* sa = bn["sci_auto"].TryResolve();
+        CHECK(sa && sa->IsBig(), "sci_auto 是 BigNum 类型");
+        SHOW("  sci_auto = ", sa->AsBig().ToStr());
+
+        // NodePtr::AsBig() 方法
+        kout << "  >> NodePtr::AsBig() 方法" << std::endl;
+        KBIGNUM::BigNum bigval = bn["overflow_big"].AsBig();
+        SHOW("  AsBig() = ", bigval.ToStr());
     }
 
     // ==================== 完成 ====================
     kout << Color::Bold << "\n=== dbgKSON 所有测试完成 ===" << Color::Reset << std::endl;
-    kend();
+    KEnd();
 }

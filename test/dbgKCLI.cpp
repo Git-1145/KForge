@@ -25,9 +25,10 @@ using namespace KCLI;
 
 int main()
 {
-    auto root = ReadKsonFile("cfg.kson");
-    // KBegin: 启用 VT100, 设置标题, 打印标题框
-    KBegin(root);
+    KBegin(read(Preprocess(
+        "\"title\": \"dbgKCLI 模块测试\","
+        "\"description\": \"KCLI 命令行交互模块全功能测试\""
+    )));
 
     // ==================== 1. kout 链式输出 ====================
     SECTION("1. kout 链式输出");
@@ -126,9 +127,10 @@ int main()
     // ==================== 9. 从文件读取配置 ====================
     SECTION("9. 从文件读取配置的 KOptions");
     {
-        kson cfg = ReadKsonFile("test_cli.kson");
-        kout << "  从 test_cli.kson 读取菜单配置" << std::endl;
-        kson menu = cfg["main_menu"];
+        kson menu = read(Preprocess(
+            "\"title\": \"子菜单\","
+            "\"options\": [\"功能一\", \"功能二\", \"返回\"]"
+        ));
         size_t choice = KOptions(menu);
         kout << "  你选择了: [" << choice << "] " << menu["options"][choice].Auto() << std::endl;
     }

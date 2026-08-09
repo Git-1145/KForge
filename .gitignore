@@ -4,3 +4,8 @@ base/trash/*.hpp
 .trae/
 base/DEVLOG.md
 test/*.obj
+base/*.bat
+study/**/*.bat
+.vscode/
+try_compile.bat
+!OUT!
