@@ -127,10 +127,8 @@ int main()
     // ==================== 9. 从文件读取配置 ====================
     SECTION("9. 从文件读取配置的 KOptions");
     {
-        kson menu = read(Preprocess(
-            "\"title\": \"子菜单\","
-            "\"options\": [\"功能一\", \"功能二\", \"返回\"]"
-        ));
+        kson doc = ReadKsonFile("cfg.kson");
+        kson menu = doc["cli_test"];
         size_t choice = KOptions(menu);
         kout << "  你选择了: [" << choice << "] " << menu["options"][choice].Auto() << std::endl;
     }

@@ -10,18 +10,20 @@ int main()
 
     /// @brief 测试 Normalize 函数
     auto root1 = file["bignum"]["normalize"];
-    for(size_t i = 0 ;i<root1.size();i++)
+    for(size_t i = 0; i < root1.size(); i++)
     {
         std::string str = root1[i].Str();
-        AddTimer("Normalize",TimeUnit::us);
+        AddTimer("Normalize", TimeUnit::us);
         kout << str << " -> " << Normalize(str) << "\n";
         PrintTimer("Normalize");
         DeleteTimer("Normalize");
     }
-    auto root2 = file["bignum"]["to_big"];
+
     kout << "\n\n\n\n";
+
     /// @brief 测试 ToBig + ToStr 往返
-    for(size_t i = 0 ;i<root2.size();i++)
+    auto root2 = file["bignum"]["to_big"];
+    for(size_t i = 0; i < root2.size(); i++)
     {
         std::string str = root2[i].Str();
         std::string normalized = Normalize(str);
@@ -29,7 +31,7 @@ int main()
         if(!normalized.empty() && normalized[0] == '+')
             normalized = normalized.substr(1);
 
-        AddTimer("tobignum",TimeUnit::us);
+        AddTimer("tobignum", TimeUnit::us);
         BigNum big(str);
         PrintTimer("tobignum");
         DeleteTimer("tobignum");
@@ -49,24 +51,41 @@ int main()
         else
             kout << "  [FAIL] round-trip: expected " << normalized << "\n\n";
     }
-    /// @brief 测试 AbsAdd AbsSub函数
+
+    /// @brief 测试 AbsAdd AbsSub AbsCmp 函数
     auto root3 = file["bignum"]["absCaculate"];
-    for(size_t i = 0 ;i<root3.size();i++)
+    for(size_t i = 0; i < root3["A"].size(); i++)
     {
-        AddTimer("absCaculate",TimeUnit::us);
-        BigNum A (root3["A"][i].Str());
-        BigNum B (root3["B"][i].Str());
-        kout << A << " + " << B <<" -> " << AbsAdd(A,B) << "\n";
-        kout << A << " - " << B <<" -> " << AbsSub(A,B) << "\n";
+        AddTimer("absCaculate", TimeUnit::us);
+        BigNum A(root3["A"][i].Str());
+        BigNum B(root3["B"][i].Str());
+        kout << A << " + " << B << " -> " << AbsAdd(A, B) << "\n";
+        kout << A << " - " << B << " -> " << AbsSub(A, B) << "\n";
+        auto cmp = AbsCmp(A, B);
+        kout << A << " cmp " << B << " -> " << cmp;
+        kout << " (" << (cmp > 0 ? "A>B" : (cmp == 0 ? "A=B" : "A<B")) << ")\n";
         PrintTimer("absCaculate");
         DeleteTimer("absCaculate");
     }
+
+    /// @brief 测试 error_cases.normalize_errors (错误字符串)
+    auto root5 = file["error_cases"]["normalize_errors"];
+    for(size_t i = 0; i < root5.size(); i++)
+    {
+        std::string str = root5[i].Str();
+        AddTimer("Normalize", TimeUnit::us);
+        kout << str << " -> " << Normalize(str) << "\n";
+        PrintTimer("Normalize");
+        DeleteTimer("Normalize");
+    }
+
     /// @brief 测试科学计数法 和 大数B
     auto root4 = file["kson_bignum"];
-    for(size_t i = 0 ;i<root4.size();i++)
+    for(size_t i = 0; i < root4.size(); i++)
     {
         auto a = root4[i].Auto();
         kout << a << "\n";
     }
+
     KEnd();
 }

@@ -7,5 +7,5 @@ test/*.obj
 base/*.bat
 study/**/*.bat
 .vscode/
-try_compile.bat
-!OUT!
+base/obj/
+base/KF.lib

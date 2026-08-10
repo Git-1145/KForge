@@ -18,6 +18,7 @@
  *  13. DeleteTimer - 删除不存在的计时器（警告）
  *  14. 综合工作流
  *  15. 空表打印
+ *  16. 边界情况 (空名字 / 已删除 / 不存在)
  */
 
 #include "../base/KF.hpp"
@@ -125,6 +126,22 @@ int main()
         kout << "  init:   " << i << " ns" << std::endl;
         kout << "  total:  " << t << " s"  << std::endl;
 
+        // 暂停 vs 运行中的 GetTimer 差异
+        kout << "  -- 暂停 vs 运行中 对比 --" << std::endl;
+        AddTimer("cmp", TimeUnit::ms);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        PauseTimer("cmp");
+        double paused1 = GetTimer("cmp");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        double paused2 = GetTimer("cmp");
+        kout << "  暂停后  GetTimer: " << paused1 << " ms" << std::endl;
+        kout << "  再等50ms GetTimer: " << paused2 << " ms (暂停期间应保持不变)" << std::endl;
+        StartTimer("cmp");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        double running = GetTimer("cmp");
+        kout << "  恢复运行 GetTimer: " << running << " ms (运行中应持续增长)" << std::endl;
+        PauseTimer("cmp");
+
         kout << "  >> GetTimer(\"nonexistent\")" << std::endl;
         double bad = GetTimer("nonexistent");
         kout << "  返回值: " << bad << " (期望 -1)" << std::endl;
@@ -193,8 +210,31 @@ int main()
         DeleteTimer("load");
         DeleteTimer("total");
         DeleteTimer("work");
+        DeleteTimer("cmp");
         kout << "  所有计时器已删除, 打印空表:" << std::endl;
         PrintAllTimers();
+    }
+
+    // ==================== 16. 边界情况 ====================
+    SECTION("16. 边界情况");
+    {
+        // (a) AddTimer 空字符串名字
+        kout << "  >> AddTimer(\"\", TimeUnit::ms)  (空名字)" << std::endl;
+        AddTimer("", TimeUnit::ms);
+
+        // (b) GetTimer 已删除的计时器 (应返回 -1)
+        AddTimer("tmp", TimeUnit::ms);
+        DeleteTimer("tmp");
+        kout << "  >> GetTimer(\"tmp\")  (已删除)" << std::endl;
+        double gone = GetTimer("tmp");
+        kout << "  返回值: " << gone << " (期望 -1)" << std::endl;
+
+        // (c) PrintTimer 不存在的计时器 (不应崩溃)
+        kout << "  >> PrintTimer(\"ghost\")  (不存在, 不应崩溃)" << std::endl;
+        PrintTimer("ghost");
+
+        // 清理空名字计时器
+        DeleteTimer("");
     }
 
     // ==================== 完成 ====================

@@ -76,6 +76,13 @@ int main()
         kout << "  >> KLOG_ERROR(KFIO_FILE_OPEN_FAIL, \"simulated\")" << std::endl;
         // 注: KFIO_FILE_OPEN_FAIL 是 Fatal 级别, 这里用 Error 级别的码演示
         KLOG_ERROR(KSON_PARSE_VAL_ERROR, "simulated KFIO error");
+
+        // KBIGNUM 模块
+        kout << "  >> KLOG_WARNING(KBIGNUM_MULPOINT, \"multiple dots\")" << std::endl;
+        KLOG_WARNING(KBIGNUM_MULPOINT, "multiple dots in bignum");
+
+        kout << "  >> KLOG_WARNING(KBIGNUM_INVALIDCHAR, \"invalid char\")" << std::endl;
+        KLOG_WARNING(KBIGNUM_INVALIDCHAR, "invalid char in bignum");
     }
 
     // ==================== 3. MakeCode 错误码组装 ====================
@@ -98,6 +105,10 @@ int main()
 
         // KCLI 模块
         kout << "  KCLI_INPUT_INVALID   = " << HexCode(KCLI_INPUT_INVALID)   << std::endl;
+
+        // KBIGNUM 模块
+        kout << "  KBIGNUM_MULPOINT     = " << HexCode(KBIGNUM_MULPOINT) << std::endl;
+        kout << "  KBIGNUM_INVALIDCHAR  = " << HexCode(KBIGNUM_INVALIDCHAR) << std::endl;
 
         // UNKNOWN
         kout << "  UNKNOWN              = " << HexCode(UNKNOWN)              << std::endl;
@@ -124,6 +135,8 @@ int main()
         show("KSON_PARSE_MULPOINT",    KSON_PARSE_MULPOINT);
         show("KFIO_FILE_OPEN_FAIL",    KFIO_FILE_OPEN_FAIL);
         show("KCLI_INPUT_INVALID",     KCLI_INPUT_INVALID);
+        show("KBIGNUM_MULPOINT",       KBIGNUM_MULPOINT);
+        show("KBIGNUM_INVALIDCHAR",    KBIGNUM_INVALIDCHAR);
         show("UNKNOWN",                UNKNOWN);
 
         // 不在码表中的码
@@ -146,6 +159,7 @@ int main()
         kout << "  Module::KSON    = " << HexCode(Module::KSON)    << std::endl;
         kout << "  Module::KTIMER  = " << HexCode(Module::KTIMER)  << std::endl;
         kout << "  Module::KCLI    = " << HexCode(Module::KCLI)    << std::endl;
+        kout << "  Module::KBIGNUM = " << HexCode(Module::KBIGNUM) << std::endl;
     }
 
     // ==================== 6. Color 颜色常量展示 ====================

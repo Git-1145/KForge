@@ -1,97 +1,139 @@
 # KSON 全功能测试配置文件
-# 涵盖所有数据类型、嵌套结构、转义字符等
+# 涵盖所有数据类型、嵌套结构、转义字符、大数、科学计数法、错误用例
 
-"intro": {
-    "name": "cfg.kson",
-    "description": "KSON 全功能测试配置",
-    "author": "KForge"
-},
-"types": {
-    "integer": 42,
-    "negative_int": -7,
-    "big_int": 2147483648,
-    "decimal": 3.14,
-    "negative_dec": -1.5,
-    "int_as_dec": 123.1,
-    "string": "Hello, KSON!",
-    "chinese": "你好世界",
-    "unicode": "こんにちは",
-    "bool_true": true,
-    "bool_false": false,
-    "null_value": null,
-    "empty_str": ""
-},
-"arrays": {
-    "int_array": [1, 2, 3, 4, 5],
-    "mixed_array": [1, "two", 3.0, true, null],
-    "string_array": ["apple", "banana", "cherry"],
-    "nested_2d": [
-        ["a", "b", "c"],
-        ["d", "e", "f"],
-        ["g", "h", "i"]
-    ],
-    "nested_3d": [
-        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        [[10, 11, 12], [13, 14, 15], [16, 17, 18]]
-    ],
-    "empty_array": []
-},
-"objects": {
-    "nested": {
-        "level1": {
-            "level2": {
-                "deep_value": "found me!"
-            },
-            "level2":
+{
+    "intro":
+    {
+        "name": "cfg.kson",
+        "description": "KSON full feature test config",
+        "author": "KForge"
+    },
+
+    "types":
+    {
+        "integer": 42,
+        "negative_int": -7,
+        "big_int": 2147483648,
+        "decimal": 3.14,
+        "negative_dec": -1.5,
+        "int_as_dec": 123.1,
+        "string": "Hello, KSON!",
+        "chinese": "你好世界",
+        "unicode": "こんにちは",
+        "bool_true": true,
+        "bool_false": false,
+        "null_value": null,
+        "empty_str": ""
+    },
+
+    "arrays":
+    {
+        "int_array": [1, 2, 3, 4, 5],
+        "mixed_array": [1, "two", 3.0, true, null],
+        "string_array": ["apple", "banana", "cherry"],
+        "nested_2d":
+        [
+            ["a", "b", "c"],
+            ["d", "e", "f"],
+            ["g", "h", "i"]
+        ],
+        "nested_3d":
+        [
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+            [[10, 11, 12], [13, 14, 15], [16, 17, 18]]
+        ],
+        "empty_array": []
+    },
+
+    "objects":
+    {
+        "nested":
+        {
+            "level1":
             {
-                "deep_value": "find me!"
+                "level2":
+                {
+                    "deep_value": "found me!"
+                },
+                "level2":
+                {
+                    "deep_value": "find me!"
+                }
             }
+        },
+        "empty_obj": {}
+    },
+
+    "escapes":
+    {
+        "newline": "line1\nline2",
+        "tab": "col1\tcol2",
+        "quote": "say \"hi\"",
+        "backslash": "path\\to\\file",
+        "carriage_return": "line\r\n",
+        "backspace": "abc\b\b\bxyz"
+    },
+
+    "dup_key": "first",
+    "dup_key": "second",
+
+    "cli_test":
+    {
+        "title": "CLI test config",
+        "description": "for KCLI test",
+        "options": ["Option A", "Option B", "Option C"]
+    },
+
+    "bignum":
+    {
+        "normalize":
+        [
+            "12345676", "12345.678", "000012340.3221000000",
+            "-0", "6666.", "-000.1", "0.000000001", "0.0001000",
+            "0", "-0", "00000", "-00000.000", "0.0", "100.0",
+            "999999999", "1000000000", "-123.456", "+42"
+        ],
+        "to_big":
+        [
+            "1234567611111111111131312321323123132332",
+            "12345.678", "000012340.3221000000",
+            "-0", "6666.", "-000.1",
+            "0.000000001", "0.0001000", "0",
+            "999999999", "1000000000",
+            "123456789012345678901234567890",
+            "-123.456", "100.0", "+42", "-00000.000"
+        ],
+        "absCaculate":
+        {
+            "A": ["123456789", "-98371126312637", "114514"],
+            "B": ["088888888", "4578347543574354535", "2345"]
         }
     },
-    "empty_obj": {}
-},
-"escapes": {
-    "newline": "line1\nline2",
-    "tab": "col1\tcol2",
-    "quote": "say \"hi\"",
-    "backslash": "path\\to\\file",
-    "carriage_return": "line\r\n",
-    "backspace": "abc\b\b\bxyz"
-},
-"dup_key": "first",
-"dup_key": "second",
 
-"bignum":
-{
-    "normalize":
+    "kson_bignum":
     [
-        "12345676","12345.678","000012340.3221000000","-.123.123.","-0","6666.","dw1-abca00432.432100","-000.1",
-        "0.000000001","0.0001000",
-        "0","-0","00000","-00000.000","0.0","100.0","999999999","1000000000","-123.456","+42"
+        9223372036854775807,
+        123456789012345678901234567890,
+        -987654321098765432109876543210,
+        -1.23e50,
+        1.23e-10,
+        -5e20,
+        3e25,
+        1235648273813688172316313716326731e-10,
+        123456782222222222222222222222222222229B,
+        -987654321B
     ],
-    "to_big":
-    [
-        "1234567611111111111131312321323123132332","12345.678","000012340.3221000000","-.123.123.","-0","6666.","dw1-abca00432.432100","-000.1",
-        "0.000000001","0.0001000",
-        "0","999999999","1000000000","123456789012345678901234567890","-123.456","100.0","+42","-00000.000"
-    ],
-    "absCaculate":
+
+    "error_cases":
     {
-        "A":["123456789","-98371126312637","114514"],
-        "B":["088888888","4578347543574354535","2345"]
+        "normalize_errors":
+        [
+            "-.123.123.",
+            "dw1-abca00432.432100"
+        ],
+        "kson_parse_errors":
+        [
+            123extra1
+        ]
     }
-},
-"kson_bignum":
-[
-               9223372036854775807,
-            123456789012345678901234567890,
-            -987654321098765432109876543210,
-                 -1.23e50,
-               1.23e-10,
-              -5e20,
-            3e25,
-            1235648273813688172316313716326731e-10,
-          123456782222222222222222222222222222229B,
-       -987654321B,
-       123extra1
-]
+}

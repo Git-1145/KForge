@@ -4,18 +4,21 @@ namespace KF
 {
     namespace KSON
     {
-        constexpr char OBJ_BEGIN = '{';
-        constexpr char OBJ_END = '}';
-        constexpr char ARR_BEGIN = '[';
-        constexpr char ARR_END = ']';
-        constexpr char CHAR_NEG = '-';
-        constexpr char CHAR_POS = '+';
-        constexpr char CHAR_COMMA = ',';
-        constexpr char CHAR_POINT = '.';
-        constexpr char CHAR_COMMENT1 = '#';
-        constexpr char CHAR_SEPERATOR = ':';
-        constexpr char CHAR_QUOTE1  = '\"';
-        constexpr char CHAR_ESCAPE1  = '\\';
+        constexpr char OBJ_BEGIN = '{';        // 对象开始
+        constexpr char OBJ_END = '}';          // 对象结束
+        constexpr char ARR_BEGIN = '[';        // 数组开始
+        constexpr char ARR_END = ']';          // 数组结束
+        constexpr char CHAR_NEG = '-';         // 负号
+        constexpr char CHAR_POS = '+';         // 正号
+        constexpr char CHAR_COMMA = ',';       // 逗号
+        constexpr char CHAR_POINT = '.';       // 小数点
+        constexpr char CHAR_COMMENT1 = '#';    // 单行注释
+        constexpr char CHAR_SEPERATOR = ':';   // 分隔键值
+        constexpr char CHAR_QUOTE1  = '\"';    // 字符串引号
+        constexpr char CHAR_ESCAPE1  = '\\';   // 转义字符
+        constexpr char CHAR_SCI_UP = 'E';      // 科学计数法大写
+        constexpr char CHAR_SCI_LOW = 'e';     // 科学计数法小写        
+        constexpr char CHAR_FORCE_BIG = 'B';   // 强制转换成大数类型 
 //---------------------------------------------UTILITY--------------------------------
         bool IsNumEnd(char c) noexcept //数字是否要结束了 碰到 逗号 ] } 结束
         {
@@ -220,75 +223,12 @@ namespace KF
                 size_t type = 0;  // 0:整数 1:小数 2:科学计数 3:大数
                 auto ExitParse = [&]() -> Node
                 {
-                    res[0] = (isneg) ? '-' : '+';
+                    res[0] = (isneg) ? CHAR_NEG : CHAR_POS;
                     res.resize(WritePtr);//去掉多余的容量
                     if(res.size() == 1) //如果数字为空
                         res="0";
 
                     // 科学计数法 → 展开为完整十进制字符串 → BigNum
-                    if(type == 2)
-                    {
-                        // res 形如 "+1.23e5" 或 "-1.23e-5"
-                        size_t ePos = res.find('e');
-                        if(ePos == std::string::npos) ePos = res.find('E');
-                        std::string mantissa = res.substr(0, ePos);
-                        std::string expStr   = res.substr(ePos + 1);
-
-                        // 解析指数
-                        long long exponent = 0;
-                        try { exponent = std::stoll(expStr); }
-                        catch(const std::exception&) { KLOG_ERROR(KSON_PARSE_NUMOR, "bad exponent: " + expStr); }
-
-                        // 提取纯数字串（移除符号和小数点）
-                        bool mantNeg = (mantissa[0] == '-');
-                        size_t dotPos = mantissa.find('.');
-                        std::string mantDigits;
-                        for(size_t i = 1; i < mantissa.size(); i++)
-                            if(mantissa[i] != '.') mantDigits += mantissa[i];
-
-                        // 计算小数点后的位数（如果 mantissa 有小数点）
-                        size_t decDigits = (dotPos == std::string::npos) ? 0
-                                          : (mantissa.size() - dotPos - 1);
-
-                        // 计算完整字符串
-                        std::string fullStr;
-                        if(exponent >= 0)
-                        {
-                            // 小数点右移
-                            if((size_t)exponent >= decDigits)
-                                fullStr = mantDigits + std::string((size_t)exponent - decDigits, '0');
-                            else
-                            {
-                                size_t insPos = mantDigits.size() - (decDigits - (size_t)exponent);
-                                fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
-                            }
-                        }
-                        else
-                        {
-                            // 小数点左移（负指数）
-                            size_t intDigits = (dotPos != std::string::npos && dotPos > 1) ? dotPos - 1 : mantDigits.size();
-                            size_t totalShift = (size_t)(-exponent);
-                            if(totalShift <= intDigits)
-                            {
-                                size_t insPos = intDigits - totalShift;
-                                if(insPos == 0)
-                                    fullStr = "0." + mantDigits;
-                                else
-                                    fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
-                            }
-                            else
-                            {
-                                fullStr = "0." + std::string(totalShift - intDigits, '0') + mantDigits;
-                            }
-                        }
-
-                        if(mantNeg) fullStr = "-" + fullStr;
-                        else        fullStr = "+" + fullStr;
-
-                        // 用 Normalize 清理 + ToBig 转换
-                        return Node(KBIGNUM::BigNum::ToBig(KBIGNUM::Normalize(fullStr)));
-                    }
-
                     switch (type)
                     {
                         case 0: //整数
@@ -324,6 +264,68 @@ namespace KF
                                 KLOG_ERROR(KSON_PARSE_NUMOR, res + " | " + e.what());
                                 return Node(0.0);
                             }
+                        }
+                        case 2: //科学计数法
+                        {
+                            // res 形如 "+1.23e5" 或 "-1.23e-5"
+                            size_t ePos = res.find(CHAR_SCI_LOW); //找不到小写e就找大写E
+                            if(ePos == std::string::npos) ePos = res.find(CHAR_SCI_UP);
+                            std::string mantissa = res.substr(0, ePos);
+                            std::string expStr   = res.substr(ePos + 1);
+
+                            // 解析指数
+                            long long exponent = 0;
+                            try { exponent = std::stoll(expStr); }
+                            catch(const std::exception&) { KLOG_ERROR(KSON_PARSE_NUMOR, "bad exponent: " + expStr); }
+
+                            // 提取纯数字串（移除符号和小数点）
+                            bool mantNeg = (mantissa[0] == '-');
+                            size_t dotPos = mantissa.find('.');
+                            std::string mantDigits;
+                            for(size_t i = 1; i < mantissa.size(); i++)
+                                if(mantissa[i] != '.') mantDigits += mantissa[i];
+
+                            // 计算小数点后的位数（如果 mantissa 有小数点）
+                            size_t decDigits = (dotPos == std::string::npos) ? 0
+                                            : (mantissa.size() - dotPos - 1);
+
+                            // 计算完整字符串
+                            std::string fullStr;
+                            if(exponent >= 0)
+                            {
+                                // 小数点右移
+                                if((size_t)exponent >= decDigits)
+                                    fullStr = mantDigits + std::string((size_t)exponent - decDigits, '0');
+                                else
+                                {
+                                    size_t insPos = mantDigits.size() - (decDigits - (size_t)exponent);
+                                    fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
+                                }
+                            }
+                            else
+                            {
+                                // 小数点左移（负指数）
+                                size_t intDigits = (dotPos != std::string::npos && dotPos > 1) ? dotPos - 1 : mantDigits.size();
+                                size_t totalShift = (size_t)(-exponent);
+                                if(totalShift <= intDigits)
+                                {
+                                    size_t insPos = intDigits - totalShift;
+                                    if(insPos == 0)
+                                        fullStr = "0." + mantDigits;
+                                    else
+                                        fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
+                                }
+                                else
+                                {
+                                    fullStr = "0." + std::string(totalShift - intDigits, '0') + mantDigits;
+                                }
+                            }
+
+                            if(mantNeg) fullStr = "-" + fullStr;
+                            else        fullStr = "+" + fullStr;
+
+                            // 用 Normalize 清理 + ToBig 转换
+                            return Node(KBIGNUM::BigNum::ToBig(KBIGNUM::Normalize(fullStr)));
                         }
                         case 3: //大数（'B'后缀强制）
                             return Node(KBIGNUM::BigNum::ToBig(res));
@@ -364,7 +366,7 @@ namespace KF
                         }
                         ReadPtr++;
                     }
-                    else if(str[ReadPtr] == 'e' || str[ReadPtr] == 'E') //科学计数法
+                    else if(str[ReadPtr] == CHAR_SCI_LOW || str[ReadPtr] == CHAR_SCI_UP) //科学计数法
                     {
                         // 只有后面紧跟数字（或符号+数字）才算科学计数法
                         size_t peek = ReadPtr + 1;
@@ -389,7 +391,7 @@ namespace KF
                             ReadPtr++;
                         }
                     }
-                    else if(str[ReadPtr] == 'B') //强制 BigNum 后缀
+                    else if(str[ReadPtr] == CHAR_FORCE_BIG) //强制 BigNum 后缀
                     {
                         type = 3;
                         ReadPtr++;

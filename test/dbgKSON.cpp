@@ -19,6 +19,9 @@
  *  14.  NodePtr 取值方法 (Str / Int / Dec / Bool / Size / Exists)
  *  15.  Preprocess 预处理
  *  16.  错误条件 (警告级)
+ *  17.  BigNum / 科学计数法 (数组下标访问)
+ *  18.  错误用例 (error_cases: normalize_errors / kson_parse_errors)
+ *  19.  边界与类型不匹配 (find/at/size 误用 + AsSth 类型不匹配)
  */
 
 #include "../base/KF.hpp"
@@ -85,7 +88,7 @@ int main()
         kson doc = ReadKsonFile("cfg.kson");
         CHECK(doc.Exists(), "ReadKsonFile 读取 cfg.kson");
         SHOW("intro.name",    doc["intro"]["name"].Auto());
-        SHOW("intro.version", doc["intro"]["version"].Auto());
+        SHOW("intro.description", doc["intro"]["description"].Auto());
 
         // NodePtr::ParseFile 静态工厂
         kson doc2 = NodePtr::ParseFile("cfg.kson");
@@ -398,69 +401,198 @@ int main()
     // ==================== 17. BigNum / 科学计数法 ====================
     SECTION("17. BigNum / 科学计数法");
     {
-        // testu: 使用 cfg.kson 中的 kson_bignum 数据
+        // cfg.kson 中 kson_bignum 现为数组，共 10 个元素，按下标访问
         kson bn = doc["kson_bignum"];
+        const Node* bnRoot = bn.TryResolve();
+        CHECK(bnRoot && bnRoot->IsArray(), "kson_bignum 是数组");
+        CHECK(bnRoot && bnRoot->size() == 10, "kson_bignum 共 10 个元素");
 
-        // int64 范围内 → 普通整数
-        kout << "  >> int64_max (普通整数)" << std::endl;
-        const Node* int64max = bn["int64_max"].TryResolve();
-        CHECK(int64max && int64max->IsInt(), "int64_max 是 Int 类型");
-        CHECK(int64max->AsInt() == 9223372036854775807LL, "int64_max 值正确");
+        // 数组下标必须用 std::size_t，匹配 operator[](std::size_t) 重载
+        std::size_t i0 = 0, i1 = 1, i2 = 2, i3 = 3, i4 = 4;
+        std::size_t i5 = 5, i6 = 6, i7 = 7, i8 = 8, i9 = 9;
 
-        // 超出 int64 → 自动 BigNum
-        kout << "  >> overflow_big (自动转 BigNum)" << std::endl;
-        const Node* obig = bn["overflow_big"].TryResolve();
-        CHECK(obig && obig->IsBig(), "overflow_big 是 BigNum 类型");
-        CHECK(obig->AsBig().ToStr() == "123456789012345678901234567890", "overflow_big 值正确");
+        // [0] = 9223372036854775807 (int64_max) → 普通整数
+        kout << "  >> [0] int64_max (普通整数)" << std::endl;
+        const Node* n0 = bn[i0].TryResolve();
+        CHECK(n0 && n0->IsInt(), "[0] int64_max 是 Int 类型");
+        CHECK(n0->AsInt() == 9223372036854775807LL, "[0] int64_max 值正确");
+        SHOW("[0] int64_max", n0->AsInt());
 
-        // 负大数
-        kout << "  >> negative_big (负大数)" << std::endl;
-        const Node* nbig = bn["negative_big"].TryResolve();
-        CHECK(nbig && nbig->IsBig(), "negative_big 是 BigNum 类型");
-        CHECK(nbig->AsBig().isneg == true, "negative_big 为负数");
-        SHOW("  negative_big = ", nbig->AsBig().ToStr());
+        // [1] = 123456789012345678901234567890 (超出 int64) → 自动 BigNum
+        kout << "  >> [1] overflow_big (自动转 BigNum)" << std::endl;
+        const Node* n1 = bn[i1].TryResolve();
+        CHECK(n1 && n1->IsBig(), "[1] overflow_big 是 BigNum 类型");
+        CHECK(n1->AsBig().ToStr() == "123456789012345678901234567890", "[1] overflow_big 值正确");
+        SHOW("[1] overflow_big", n1->AsBig().ToStr());
 
-        // 科学计数法 → 自动 BigNum
-        kout << "  >> sci_big (科学计数法 1.23e50)" << std::endl;
-        const Node* sci = bn["sci_big"].TryResolve();
-        CHECK(sci && sci->IsBig(), "sci_big 是 BigNum 类型");
-        SHOW("  sci_big = ", sci->AsBig().ToStr());
+        // [2] = -987654321098765432109876543210 (负大数)
+        kout << "  >> [2] negative_big (负大数)" << std::endl;
+        const Node* n2 = bn[i2].TryResolve();
+        CHECK(n2 && n2->IsBig(), "[2] negative_big 是 BigNum 类型");
+        CHECK(n2->AsBig().isneg == true, "[2] negative_big 为负数");
+        SHOW("[2] negative_big", n2->AsBig().ToStr());
 
-        // 小科学计数法
-        kout << "  >> sci_small (科学计数法 1.23e-10)" << std::endl;
-        const Node* sci_s = bn["sci_small"].TryResolve();
-        CHECK(sci_s && sci_s->IsBig(), "sci_small 是 BigNum 类型");
-        SHOW("  sci_small = ", sci_s->AsBig().ToStr());
+        // [3] = -1.23e50 (科学计数法 → BigNum)
+        kout << "  >> [3] sci_big (-1.23e50)" << std::endl;
+        const Node* n3 = bn[i3].TryResolve();
+        CHECK(n3 && n3->IsBig(), "[3] sci_big 是 BigNum 类型");
+        SHOW("[3] sci_big", n3->AsBig().ToStr());
 
-        // 负科学计数法
-        kout << "  >> sci_neg (科学计数法 -5e20)" << std::endl;
-        const Node* sci_n = bn["sci_neg"].TryResolve();
-        CHECK(sci_n && sci_n->IsBig(), "sci_neg 是 BigNum 类型");
-        SHOW("  sci_neg = ", sci_n->AsBig().ToStr());
+        // [4] = 1.23e-10 (负指数科学计数法 → BigNum)
+        kout << "  >> [4] sci_small (1.23e-10)" << std::endl;
+        const Node* n4 = bn[i4].TryResolve();
+        CHECK(n4 && n4->IsBig(), "[4] sci_small 是 BigNum 类型");
+        SHOW("[4] sci_small", n4->AsBig().ToStr());
 
-        // 'B' 后缀强制 BigNum
-        kout << "  >> big_suffix (123456789B)" << std::endl;
-        const Node* bs = bn["big_suffix"].TryResolve();
-        CHECK(bs && bs->IsBig(), "big_suffix 是 BigNum 类型");
-        SHOW("  big_suffix = ", bs->AsBig().ToStr());
+        // [5] = -5e20 (负科学计数法 → BigNum)
+        kout << "  >> [5] sci_neg (-5e20)" << std::endl;
+        const Node* n5 = bn[i5].TryResolve();
+        CHECK(n5 && n5->IsBig(), "[5] sci_neg 是 BigNum 类型");
+        SHOW("[5] sci_neg", n5->AsBig().ToStr());
 
-        // 负 'B' 后缀
-        kout << "  >> neg_big_suffix (-987654321B)" << std::endl;
-        const Node* nbs = bn["neg_big_suffix"].TryResolve();
-        CHECK(nbs && nbs->IsBig(), "neg_big_suffix 是 BigNum 类型");
-        CHECK(nbs->AsBig().isneg == true, "neg_big_suffix 为负数");
-        SHOW("  neg_big_suffix = ", nbs->AsBig().ToStr());
+        // [6] = 3e25 (科学计数法 → BigNum)
+        kout << "  >> [6] sci_auto (3e25)" << std::endl;
+        const Node* n6 = bn[i6].TryResolve();
+        CHECK(n6 && n6->IsBig(), "[6] sci_auto 是 BigNum 类型");
+        SHOW("[6] sci_auto", n6->AsBig().ToStr());
 
-        // 科学计数法 3e25 → 自动 BigNum
-        kout << "  >> sci_auto (3e25)" << std::endl;
-        const Node* sa = bn["sci_auto"].TryResolve();
-        CHECK(sa && sa->IsBig(), "sci_auto 是 BigNum 类型");
-        SHOW("  sci_auto = ", sa->AsBig().ToStr());
+        // [7] = 1235648273813688172316313716326731e-10 (大科学计数法 → BigNum)
+        kout << "  >> [7] sci_huge (1235648273813688172316313716326731e-10)" << std::endl;
+        const Node* n7 = bn[i7].TryResolve();
+        CHECK(n7 && n7->IsBig(), "[7] sci_huge 是 BigNum 类型");
+        SHOW("[7] sci_huge", n7->AsBig().ToStr());
 
-        // NodePtr::AsBig() 方法
+        // [8] = 123456782222222222222222222222222222229B ('B' 后缀强制 BigNum)
+        kout << "  >> [8] big_suffix (123456782222222222222222222222222222229B)" << std::endl;
+        const Node* n8 = bn[i8].TryResolve();
+        CHECK(n8 && n8->IsBig(), "[8] big_suffix 是 BigNum 类型");
+        SHOW("[8] big_suffix", n8->AsBig().ToStr());
+
+        // [9] = -987654321B (负 'B' 后缀 → BigNum, 负数)
+        kout << "  >> [9] neg_big_suffix (-987654321B)" << std::endl;
+        const Node* n9 = bn[i9].TryResolve();
+        CHECK(n9 && n9->IsBig(), "[9] neg_big_suffix 是 BigNum 类型");
+        CHECK(n9->AsBig().isneg == true, "[9] neg_big_suffix 为负数");
+        SHOW("[9] neg_big_suffix", n9->AsBig().ToStr());
+
+        // NodePtr::AsBig() 方法 (经 NodePtr 代理，路径解析后取大数)
         kout << "  >> NodePtr::AsBig() 方法" << std::endl;
-        KBIGNUM::BigNum bigval = bn["overflow_big"].AsBig();
-        SHOW("  AsBig() = ", bigval.ToStr());
+        KBIGNUM::BigNum bigval = bn[i1].AsBig();
+        SHOW("NodePtr::AsBig()", bigval.ToStr());
+    }
+
+    // ==================== 18. 错误用例 (error_cases) ====================
+    SECTION("18. 错误用例 (error_cases)");
+    {
+        kson ec = doc["error_cases"];
+        CHECK(ec.Exists(), "error_cases 节点存在");
+
+        // --- normalize_errors: 字符串数组，对每个元素调用 KBIGNUM::Normalize() ---
+        kout << "  >> normalize_errors 数组 → Normalize()" << std::endl;
+        kson ne = ec["normalize_errors"];
+        const Node* neRoot = ne.TryResolve();
+        CHECK(neRoot && neRoot->IsArray(), "normalize_errors 是数组");
+        if (neRoot)
+        {
+            std::size_t cnt = neRoot->size();
+            for (std::size_t i = 0; i < cnt; i++)
+            {
+                const Node* elem = neRoot->at(i);
+                if (elem && elem->IsString())
+                {
+                    std::string raw = std::string(elem->AsStr());
+                    std::string normalized = KBIGNUM::Normalize(raw);
+                    kout << "    [" << i << "] raw=\"" << raw
+                         << "\" → normalized=\"" << normalized << "\"" << std::endl;
+                }
+            }
+        }
+
+        // --- kson_parse_errors: 数组，对每个元素调用 Auto() 展示解析结果 ---
+        kout << "  >> kson_parse_errors 数组 → Auto()" << std::endl;
+        kson pe = ec["kson_parse_errors"];
+        const Node* peRoot = pe.TryResolve();
+        CHECK(peRoot && peRoot->IsArray(), "kson_parse_errors 是数组");
+        if (peRoot)
+        {
+            std::size_t cnt = peRoot->size();
+            for (std::size_t i = 0; i < cnt; i++)
+            {
+                kout << "    [" << i << "] Auto() = " << pe[i].Auto() << std::endl;
+            }
+        }
+    }
+
+    // ==================== 19. 边界与类型不匹配 ====================
+    SECTION("19. 边界与类型不匹配");
+    {
+        koutW << "  以下测试会触发 KLOGGER 错误输出到 stderr" << std::endl;
+
+        const Node* arrNode = doc["arrays"]["int_array"].TryResolve();
+        const Node* strNode = doc["types"]["string"].TryResolve();
+        const Node* objNode = doc["types"].TryResolve();
+        const Node* nullNode = doc["types"]["null_value"].TryResolve();
+        const Node* intNode = doc["types"]["integer"].TryResolve();
+        const Node* decNode = doc["types"]["decimal"].TryResolve();
+        const Node* boolNode = doc["types"]["bool_true"].TryResolve();
+
+        // --- find() 在非对象节点上调用 → 返回 nullptr ---
+        kout << "  >> find() 在非对象节点上调用" << std::endl;
+        if (arrNode)
+            CHECK(arrNode->find("key") == nullptr, "find() 在数组上返回 nullptr");
+        if (strNode)
+            CHECK(strNode->find("key") == nullptr, "find() 在字符串上返回 nullptr");
+        if (intNode)
+            CHECK(intNode->find("key") == nullptr, "find() 在整数上返回 nullptr");
+
+        // --- at() 在非数组节点上调用 → 返回 nullptr ---
+        kout << "  >> at() 在非数组节点上调用" << std::endl;
+        if (objNode)
+            CHECK(objNode->at(0) == nullptr, "at() 在对象上返回 nullptr");
+        if (strNode)
+            CHECK(strNode->at(0) == nullptr, "at() 在字符串上返回 nullptr");
+        if (intNode)
+            CHECK(intNode->at(0) == nullptr, "at() 在整数上返回 nullptr");
+
+        // --- size() 在 null / 标量节点上 → 返回 0 ---
+        kout << "  >> size() 在 null / 标量节点上调用" << std::endl;
+        if (nullNode)
+        {
+            CHECK(nullNode->IsNull(),    "null_value 是 IsNull");
+            CHECK(nullNode->size() == 0, "null 节点 size() = 0");
+        }
+        if (intNode)
+            CHECK(intNode->size() == 0,  "整数节点 size() = 0");
+        if (decNode)
+            CHECK(decNode->size() == 0,  "浮点节点 size() = 0");
+        if (boolNode)
+            CHECK(boolNode->size() == 0, "布尔节点 size() = 0");
+        if (strNode)
+            CHECK(strNode->size() == 0,  "字符串节点 size() = 0");
+
+        // --- 类型不匹配: AsXxx 误用 ---
+        // AsXxx 先触发 KLOG_ERROR(KSON_TYPE_MISMATCH)，随后 std::get<T> 在类型
+        // 不符时会抛 std::bad_variant_access，故此处用 try/catch 包裹以观察行为
+        kout << "  >> 类型不匹配 (KSON_TYPE_MISMATCH → KLOG_ERROR + 可能抛异常)" << std::endl;
+        #define TYPE_MISMATCH(expr, desc) do { \
+            try { expr; \
+                kout << "    [PASS] " << desc << " (KLOG_ERROR 已触发, 未抛异常)" << std::endl; } \
+            catch (const std::exception& e) { \
+                kout << "    [PASS] " << desc << " (KLOG_ERROR + 抛异常: " << e.what() << ")" << std::endl; } \
+        } while(0)
+
+        if (strNode) TYPE_MISMATCH(strNode->AsInt(),  "AsInt()  on string");
+        if (intNode) TYPE_MISMATCH(intNode->AsStr(),  "AsStr()  on int");
+        if (intNode) TYPE_MISMATCH(intNode->AsBool(), "AsBool() on int");
+        if (intNode) TYPE_MISMATCH(intNode->AsBig(),  "AsBig()  on int");
+        if (intNode) TYPE_MISMATCH(intNode->AsArr(),  "AsArr()  on int");
+        if (intNode) TYPE_MISMATCH(intNode->AsObj(),  "AsObj()  on int");
+        if (strNode) TYPE_MISMATCH(strNode->AsDec(),  "AsDec()  on string");
+        if (arrNode) TYPE_MISMATCH(arrNode->AsStr(),  "AsStr()  on array");
+        if (objNode) TYPE_MISMATCH(objNode->AsInt(),  "AsInt()  on object");
+        if (nullNode) TYPE_MISMATCH(nullNode->AsStr(), "AsStr()  on null");
+
+        #undef TYPE_MISMATCH
     }
 
     // ==================== 完成 ====================

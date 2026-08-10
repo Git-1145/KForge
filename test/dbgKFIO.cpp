@@ -63,10 +63,10 @@ int main()
         CHECK(self.find("#include") != std::string::npos, "内容包含 #include");
         SHOW("dbgKFIO.cpp 大小", self.size());
 
-        // 读取 KCLI 配置文件
-        std::string cli_cfg = ReadFileRaw("test_cli.kson");
-        CHECK(!cli_cfg.empty(), "读取 test_cli.kson 成功");
-        CHECK(cli_cfg.find("title") != std::string::npos, "内容包含 'title'");
+        // 读取 cfg.kson 并验证 cli_test 段
+        kson cli_doc = ReadKsonFile("cfg.kson");
+        CHECK(cli_doc["cli_test"].Exists(), "cfg.kson contains cli_test section");
+        CHECK(cli_doc["cli_test"]["title"].Exists(), "cli_test has title");
     }
 
     // ==================== 4. 与 KSON 集成 ====================
