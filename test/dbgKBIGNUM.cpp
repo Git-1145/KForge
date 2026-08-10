@@ -57,10 +57,12 @@ int main()
     for(size_t i = 0; i < root3["A"].size(); i++)
     {
         AddTimer("absCaculate", TimeUnit::us);
-        BigNum A(root3["A"][i].Str());
-        BigNum B(root3["B"][i].Str());
-        kout << A << " + " << B << " -> " << AbsAdd(A, B) << "\n";
-        kout << A << " - " << B << " -> " << AbsSub(A, B) << "\n";
+        BigNum A(root3["A"][i].Auto());
+        BigNum B(root3["B"][i].Auto());
+        kout << '|'<< A << " + " << B << '|' << " -> " << AbsAdd(A, B) << "\n";
+        kout << '|'<< A << " - " << B << '|' <<" -> " << AbsSub(A, B) << "\n";
+        kout << A << " + " << B << " -> " << A + B << "\n";
+        kout << A << " - " << B << " -> " << A - B << "\n";
         auto cmp = AbsCmp(A, B);
         kout << A << " cmp " << B << " -> " << cmp;
         kout << " (" << (cmp > 0 ? "A>B" : (cmp == 0 ? "A=B" : "A<B")) << ")\n";
@@ -86,6 +88,10 @@ int main()
         auto a = root4[i].Auto();
         kout << a << "\n";
     }
-
+    /// @brief 测试随机数
+    for(size_t i = 0; i < 10; i++)
+    {
+        kout << RandBigNum(true,100,2) << "\n";
+    }
     KEnd();
 }

@@ -36,6 +36,10 @@ using Code = uint32_t;
 #define KLOG_FATAL(code, extra)     ::KF::KLOGGER::Fatal(code, extra, __FILE__, __LINE__, __FUNCTION__)
 namespace KF
 {
+    using limb = uint32_t; // 基础分块
+    using dlimb = uint64_t; // double limb
+    using slimb = int32_t; // signed limb
+    using sdlimb = int64_t; // signed double limb
     namespace KLOGGER
     {
         /// @brief 输出 [ERROR] 级别日志（程序继续运行）
@@ -160,11 +164,6 @@ namespace KF
     /// @brief 大数运算库
     namespace KBIGNUM
     {
-        using limb = uint32_t; // 基础分块
-        using dlimb = uint64_t; // double limb
-        using slimb = int32_t; // signed limb
-        using sdlimb = int64_t; // signed double limb
-
         class BigNum; // 前向声明，供自由函数签名使用
 
         /// @brief 面向内部的运算（自由函数）
@@ -215,6 +214,7 @@ namespace KF
                 }
         };
         std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0
+        BigNum RandBigNum(bool isneg=false,size_t IntSize=0ULL,size_t DecSize=0ULL); // 生成随机大数(整数位数 前面几个正负号 小数位数)
     }
 
     namespace KSON
@@ -334,7 +334,7 @@ namespace KF
                 std::string Str() const;
                 long long Int() const;
                 double Dec() const;
-                KBIGNUM::BigNum AsBig() const;
+                KBIGNUM::BigNum Big() const;
                 bool Bool() const;
                 std::size_t Size() const;
                 std::size_t size() const;  // 小写别名，等价于 Size()，方便 arr.size() 风格
@@ -508,10 +508,16 @@ namespace KF
         /// @brief 打印所有计时器信息（格式化表格，按名称排序）
         void PrintAllTimers();
     }
+    namespace KUTIL
+    {
+        sdlimb RandInt(sdlimb min, sdlimb max); ///< 生成 [min, max] 范围内的随机整数
+        sdlimb Pow10(sdlimb n); // 10的n次方
     }
+}
 namespace KSON = KF::KSON;
 namespace KLOG = KF::KLOGGER;
 namespace KFIO = KF::KFIO;
+namespace KUTIL = KF::KUTIL;
 namespace KCLI = KF::KCLI;
 namespace KTIMER = KF::KTIMER;
 namespace KBIGNUM = KF::KBIGNUM;

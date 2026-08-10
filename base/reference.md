@@ -129,7 +129,7 @@ enum class NodeType { kInt, kDec, kBig, kStr, kBool, kArr, kObj, kNull };
 | `AsBool()` | `bool` | |
 | `AsInt()` | `long long` | |
 | `AsDec()` | `double` | int 自动转 double |
-| `AsBig()` | `const BigNum&` | 大数引用 |
+| `Big()` | `const BigNum&` | 大数引用 |
 | `AsStr()` | `string_view` | |
 | `AsArr()` | `const vector<Node>&` | |
 | `AsObj()` | `const vector<pair<string,Node>>&` | |
@@ -157,7 +157,7 @@ auto val = doc["test"]["main"]["Array_Test"][0];
 |------|------|-------------|
 | `TryResolve()` | `const Node*` | `nullptr` |
 | `Resolve()` | `const Node*` | KLOG_FATAL(UNKNOWN) |
-| `Str()` / `Int()` / `Dec()` / `AsBig()` / `Bool()` / `Size()` | 对应类型 | Fatal |
+| `Str()` / `Int()` / `Dec()` / `Big()` / `Bool()` / `Size()` | 对应类型 | Fatal |
 | `Exists()` | `bool` | `false` |
 | `Auto()` | `string` | `"null"` |
 
@@ -331,7 +331,7 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 - 科学计数法（如 `1.23e50`）自动解析为 `BigNum`
 - 数字后加 `B` 后缀（如 `123456789B`）强制存储为 `BigNum`
 - 整数超出 `long long` 范围（`9223372036854775807`）自动转为 `BigNum`
-- 通过 `AsBig()` 方法获取 `BigNum` 引用
+- 通过 `Big()` 方法获取 `BigNum` 引用
 
 精度限制：整数超出 `long long` 触发 `KSON_PARSE_NUMOR`，科学计数法指数过大触发 `KSON_PARSE_BIG_EXP`。
 

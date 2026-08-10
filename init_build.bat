@@ -84,65 +84,122 @@ if "!dir:~-1!"=="\" set "dir=!dir:~0,-1!"
 echo.
 echo ===== [!dir!] =====
 
-set "has=0"
-for %%f in ("%dir%\*.cpp") do set "has=1"
-if "!has!"=="0" (
+REM List .cpp files into numbered array
+set "filecount=0"
+for %%f in ("%dir%\*.cpp") do (
+    set /a filecount+=1
+    set "file_!filecount!=%%~nxf"
+    set "filepath_!filecount!=%%f"
+)
+
+if "!filecount!"=="0" (
     echo   [INFO] No .cpp files found.
     pause
     exit /b 0
 )
 
-for %%f in ("%dir%\*.cpp") do (
-    set "build=1"
-    if exist "%%~dpnxf.exe" (
-        for %%a in ("%%f") do for %%b in ("%%~dpnf.exe") do (
-            if "%%~ta" LEQ "%%~tb" set "build=0"
-        )
-    )
-    if "!build!"=="1" (
-        if exist "%%~dpnf.exe" del "%%~dpnf.exe"
-        echo   [BUILD] %%~nxf
+REM Show file list
+echo   Files in this directory:
+for /l %%i in (1,1,!filecount!) do (
+    echo     %%i. !file_%%i!
+)
+echo.
 
-        REM Create temp folder for test obj
-        if exist "%dir%\.ktemp" rd /s /q "%dir%\.ktemp"
-        mkdir "%dir%\.ktemp"
+REM Prompt for selection
+set "choice="
+set /p "choice=  Enter numbers (e.g. 1,3,5) or Enter for all: "
 
-        REM Compile test cpp to obj
-        cl /c %CXXFLAGS% "%%f" /Fo:"%dir%\.ktemp\%%~nf.obj"
+REM Determine mode: if choice undefined or only spaces/commas -> compile all
+set "compileall=1"
+if defined choice (
+    set "sel=!choice:,= !"
+    set "seltrimmed=!sel: =!"
+    if not "!seltrimmed!"=="" set "compileall=0"
+)
+
+if "!compileall!"=="1" (
+    REM Compile all - incremental (force=0)
+    for /l %%i in (1,1,!filecount!) do (
+        call :compile_one "!filepath_%%i!" 0
         if errorlevel 1 (
-            echo   [FAIL] %%~nxf - compilation error
-            rd /s /q "%dir%\.ktemp"
+            pause
             exit /b 1
         )
-
-        REM Link with KF.lib
-        link %LINKFLAGS% "%KFLIB%" "%dir%\.ktemp\%%~nf.obj" /out:"%%~dpnf.exe"
-        if errorlevel 1 (
-            echo   [RETRY] Link failed, recompiling KF.lib ...
-            if exist "%KFLIB%" del "%KFLIB%"
-            call :precompile_base
+    )
+) else (
+    REM Compile selected - force rebuild (force=1)
+    for %%n in (!sel!) do (
+        if defined filepath_%%n (
+            call :compile_one "!filepath_%%n!" 1
             if errorlevel 1 (
-                echo   [FAIL] %%~nxf - KF.lib recompile error
-                rd /s /q "%dir%\.ktemp"
+                pause
                 exit /b 1
             )
-            link %LINKFLAGS% "%KFLIB%" "%dir%\.ktemp\%%~nf.obj" /out:"%%~dpnf.exe"
-            if errorlevel 1 (
-                echo   [FAIL] %%~nxf - linking error
-                rd /s /q "%dir%\.ktemp"
-                exit /b 1
-            )
+        ) else (
+            echo   [WARN] Invalid number: %%n
         )
-
-        rd /s /q "%dir%\.ktemp"
-        echo   [OK] %%~nxf
-    ) else (
-        echo   [SKIP] %%~nxf
     )
 )
+
 echo   [DONE]
 pause
 endlocal
+exit /b 0
+
+REM ========== :compile_one ==========
+REM %1 = file path, %2 = force (0=incremental, 1=force rebuild)
+:compile_one
+set "cf=%~1"
+set "cfn=%~n1"
+set "cfx=%~x1"
+set "force=%~2"
+
+set "build=1"
+if "!force!"=="0" (
+    if exist "%dir%\%cfn%.exe" (
+        for %%a in ("%cf%") do for %%b in ("%dir%\%cfn%.exe") do (
+            if "%%~ta" LEQ "%%~tb" set "build=0"
+        )
+    )
+)
+
+if "!build!"=="1" (
+    if exist "%dir%\%cfn%.exe" del "%dir%\%cfn%.exe"
+    echo   [BUILD] %cfn%%cfx%
+
+    if exist "%dir%\.ktemp" rd /s /q "%dir%\.ktemp"
+    mkdir "%dir%\.ktemp"
+
+    cl /c %CXXFLAGS% "%cf%" /Fo:"%dir%\.ktemp\%cfn%.obj"
+    if errorlevel 1 (
+        echo   [FAIL] %cfn%%cfx% - compilation error
+        rd /s /q "%dir%\.ktemp"
+        exit /b 1
+    )
+
+    link %LINKFLAGS% "%KFLIB%" "%dir%\.ktemp\%cfn%.obj" /out:"%dir%\%cfn%.exe"
+    if errorlevel 1 (
+        echo   [RETRY] Link failed, recompiling KF.lib ...
+        if exist "%KFLIB%" del "%KFLIB%"
+        call :precompile_base
+        if errorlevel 1 (
+            echo   [FAIL] %cfn%%cfx% - KF.lib recompile error
+            rd /s /q "%dir%\.ktemp"
+            exit /b 1
+        )
+        link %LINKFLAGS% "%KFLIB%" "%dir%\.ktemp\%cfn%.obj" /out:"%dir%\%cfn%.exe"
+        if errorlevel 1 (
+            echo   [FAIL] %cfn%%cfx% - linking error
+            rd /s /q "%dir%\.ktemp"
+            exit /b 1
+        )
+    )
+
+    rd /s /q "%dir%\.ktemp"
+    echo   [OK] %cfn%%cfx%
+) else (
+    echo   [SKIP] %cfn%%cfx%
+)
 exit /b 0
 
 REM ========== --setup: MSVC env only ==========

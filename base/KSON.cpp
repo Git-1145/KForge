@@ -674,7 +674,7 @@ namespace KF
         std::string NodePtr::Str()  const { return std::string(Resolve()->AsStr()); }
         long long   NodePtr::Int()  const { return Resolve()->AsInt(); }
         double      NodePtr::Dec()  const { return Resolve()->AsDec(); }
-        KBIGNUM::BigNum NodePtr::AsBig() const { return Resolve()->AsBig(); }
+        KBIGNUM::BigNum NodePtr::Big() const { return Resolve()->AsBig(); }
         bool        NodePtr::Bool() const { return Resolve()->AsBool(); }
         std::size_t NodePtr::Size() const { return Resolve()->size(); }
         bool        NodePtr::Exists() const { return TryResolve() != nullptr; }

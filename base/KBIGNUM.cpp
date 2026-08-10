@@ -71,6 +71,37 @@ namespace KF
         {
             *this = ToBig(std::to_string(num));
         }
+        /// @brief  生成随机大数(符号 整数位数 小数位数)
+        BigNum RandBigNum(bool isneg, size_t IntSize, size_t DecSize)
+        {
+            //整数小数长度都为0，直接返回0
+            if (IntSize == 0 && DecSize == 0)
+                return BigNum("0");
+
+            BigNum res;
+            res.limbs.clear(); // 清除默认的 {0}，避免结尾出现9个0
+            res.isneg = isneg;
+            res.scale = DecSize;
+            const size_t Total = IntSize + DecSize;
+            size_t WritePtr = 0; // 已生成的位数（从最低位开始）
+            while (WritePtr < Total)
+            {
+                const size_t remain = Total - WritePtr;
+                const size_t genLen = (remain < BASEEXP) ? remain : BASEEXP;
+                const sdlimb maxVal = KUTIL::Pow10(genLen) - 1;
+                sdlimb num;
+                // 最高位块是最后生成的（WritePtr + genLen == Total）
+                // 当有整数位时，确保首位不为0：min = Pow10(genLen-1)
+                if (WritePtr + genLen == Total && IntSize > 0)
+                    num = KUTIL::RandInt(KUTIL::Pow10(genLen - 1), maxVal);
+                else
+                    num = KUTIL::RandInt(0, maxVal);
+                res.limbs.push_back(static_cast<limb>(num));
+                WritePtr += genLen;
+            }
+            return res;
+        }
+
         /// @brief 将任意字符串转换成合法的数字 
         std::string Normalize(const std::string& str)
         {
@@ -298,6 +329,24 @@ namespace KF
                     res.limbs.pop_back();
             }
             return std::move(res);
+        }
+        BigNum BigNum::operator+(const BigNum& b) const
+        {
+            if(isneg == b.isneg) // 如果同号 直接加
+                return AbsAdd(*this, b);
+            else if(isneg) // 如果a是负数 b是正数 则b>a 
+                return AbsSub(b, *this);
+            else// a是正数 b是负数 则a>b
+                return AbsSub(*this, b);
+        }
+        BigNum BigNum::operator-(const BigNum& b) const
+        {
+            if(isneg != b.isneg) // 如果异号 直接减
+                return AbsAdd(*this, b);
+            else if(isneg) // 如果a是负数 b是正数 则a<b
+                return AbsSub(*this, b);
+            else// a是正数 b是负数 则a>b
+                return AbsSub(b, *this);
         }
     }
 }

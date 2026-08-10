@@ -477,7 +477,7 @@ int main()
 
         // NodePtr::AsBig() 方法 (经 NodePtr 代理，路径解析后取大数)
         kout << "  >> NodePtr::AsBig() 方法" << std::endl;
-        KBIGNUM::BigNum bigval = bn[i1].AsBig();
+        KBIGNUM::BigNum bigval = bn[i1].Big();
         SHOW("NodePtr::AsBig()", bigval.ToStr());
     }
 
