@@ -1,5 +1,5 @@
 
-#include "KF.hpp"
+#include "base/KF.hpp"
 namespace KF
 {
     namespace KSON
@@ -18,7 +18,7 @@ namespace KF
         constexpr char CHAR_ESCAPE1  = '\\';   // 转义字符
         constexpr char CHAR_SCI_UP = 'E';      // 科学计数法大写
         constexpr char CHAR_SCI_LOW = 'e';     // 科学计数法小写        
-        constexpr char CHAR_FORCE_BIG = 'B';   // 强制转换成大数类型 
+        constexpr char CHAR_FORCE_BIG = 'B';   // 强制转换成大数类型（仅对普通整数/小数生效，科学计数法已自动转为 BigNum）
 //---------------------------------------------UTILITY--------------------------------
         bool IsNumEnd(char c) noexcept //数字是否要结束了 碰到 逗号 ] } 结束
         {
@@ -391,9 +391,9 @@ namespace KF
                             ReadPtr++;
                         }
                     }
-                    else if(str[ReadPtr] == CHAR_FORCE_BIG) //强制 BigNum 后缀
+                    else if(str[ReadPtr] == CHAR_FORCE_BIG) //强制 BigNum 后缀（科学计数法已自动 BigNum，不覆盖）
                     {
-                        type = 3;
+                        if(type != 2) type = 3;
                         ReadPtr++;
                     }
                     /// @attention 退出窗口

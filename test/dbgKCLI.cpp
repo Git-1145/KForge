@@ -1,4 +1,5 @@
 /**
+/**
  * @file    dbgKCLI.cpp
  * @brief   KCLI 命令行交互模块全功能测试
  *
@@ -14,7 +15,7 @@
  *   9. 从文件读取配置的 KOptions
  *  10. kpause / KEnd
  */
-#include "../base/KF.hpp"
+#include "base/KF.hpp"
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
@@ -25,11 +26,8 @@ using namespace KCLI;
 
 int main()
 {
-    KBegin(read(Preprocess(
-        "\"title\": \"dbgKCLI 模块测试\","
-        "\"description\": \"KCLI 命令行交互模块全功能测试\""
-    )));
-
+    KBegin("dbgKCLI 模块测试", "KCLI 命令行交互模块全功能测试");
+    kson doc = ReadKsonFile("config/test/cfg.kson");
     // ==================== 1. kout 链式输出 ====================
     SECTION("1. kout 链式输出");
     {
@@ -52,7 +50,7 @@ int main()
     SECTION("3. koutE 链式输出 (橙色)");
     {
         koutE << "  错误: 文件未找到" << std::endl;
-        koutE << "  错误: code=" << 404 << ", path=/config.kson" << std::endl;
+        koutE << "  错误: code=" << 404 << ", path=/cfg.kson" << std::endl;
     }
 
     // ==================== 4. koutF 链式输出 ====================
@@ -127,7 +125,7 @@ int main()
     // ==================== 9. 从文件读取配置 ====================
     SECTION("9. 从文件读取配置的 KOptions");
     {
-        kson doc = ReadKsonFile("cfg.kson");
+        kson doc = ReadKsonFile("cfg/cfg.kson");
         kson menu = doc["cli_test"];
         size_t choice = KOptions(menu);
         kout << "  你选择了: [" << choice << "] " << menu["options"][choice].Auto() << std::endl;

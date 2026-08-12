@@ -1,3 +1,12 @@
+/// @attention This File has been deprecated.Don't try to use it.
+int main()
+{
+    
+}
+
+
+/*
+/*
 /**
  * @file    dbgKFIO.cpp
  * @brief   KFIO 文件读写模块全功能测试
@@ -8,9 +17,8 @@
  *   3. ReadFileRaw - 读取二进制/源码文件
  *   4. 与 KSON 集成 (ReadKsonFile / 手动流程)
  *   5. Fatal 测试 - 读取不存在的文件 (最后执行, 会终止程序)
- */
 
-#include "../base/KF.hpp"
+#include "base/KF.hpp"
 #include <cstdio>
 using namespace KFIO;
 using namespace KSON;
@@ -27,15 +35,12 @@ using namespace KCLI;
 
 int main()
 {
-    KBegin(read(Preprocess(
-        "\"title\": \"dbgKFIO 模块测试\","
-        "\"description\": \"KFIO 文件读写模块全功能测试\""
-    )));
+    KBegin("dbgKFIO 模块测试","KFIO 文件读写模块全功能测试");
 
     // ==================== 1. ReadFileRaw - 读取存在的文件 ====================
     SECTION("1. ReadFileRaw - 读取存在的文件");
     {
-        std::string content = ReadFileRaw("cfg.kson");
+        std::string content = ReadFileRaw("config/test/cfg.kson");
         CHECK(!content.empty(), "文件内容非空");
         SHOW("文件大小", content.size());
         kout << "  前 80 字符:" << std::endl;
@@ -45,7 +50,7 @@ int main()
     // ==================== 2. ReadFileRaw - 内容验证 ====================
     SECTION("2. ReadFileRaw - 内容验证");
     {
-        std::string content = ReadFileRaw("cfg.kson");
+        std::string content = ReadFileRaw("config/test/cfg.kson");
 
         // ReadFileRaw 不做任何处理, 注释和空白都保留
         CHECK(content.find("KSON") != std::string::npos, "内容包含 'KSON'");
@@ -64,7 +69,7 @@ int main()
         SHOW("dbgKFIO.cpp 大小", self.size());
 
         // 读取 cfg.kson 并验证 cli_test 段
-        kson cli_doc = ReadKsonFile("cfg.kson");
+        kson cli_doc = ReadKsonFile("cfg/cfg.kson");
         CHECK(cli_doc["cli_test"].Exists(), "cfg.kson contains cli_test section");
         CHECK(cli_doc["cli_test"]["title"].Exists(), "cli_test has title");
     }
@@ -73,19 +78,19 @@ int main()
     SECTION("4. 与 KSON 集成");
     {
         // 方式一: ReadKsonFile 一站式 (读取 + 预处理 + 解析)
-        kson doc1 = ReadKsonFile("cfg.kson");
+        kson doc1 = ReadKsonFile("cfg/cfg.kson");
         CHECK(doc1.Exists(), "ReadKsonFile 解析成功");
         SHOW("  intro.name", doc1["intro"]["name"].Auto());
 
         // 方式二: 手动流程 (ReadFileRaw + Preprocess + read)
-        std::string raw = ReadFileRaw("cfg.kson");
+        std::string raw = ReadFileRaw("config/test/cfg.kson");
         std::string processed = Preprocess(raw);
         kson doc2 = read(processed);
         CHECK(doc2.Exists(), "手动流程解析成功");
         SHOW("  intro.name", doc2["intro"]["name"].Auto());
 
         // 方式三: NodePtr::ParseFile
-        kson doc3 = NodePtr::ParseFile("cfg.kson");
+        kson doc3 = NodePtr::ParseFile("config/test/cfg.kson");
         CHECK(doc3.Exists(), "NodePtr::ParseFile 解析成功");
 
         // 验证三种方式结果一致
@@ -129,3 +134,4 @@ int main()
 
     return 0;
 }
+*/

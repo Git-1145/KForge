@@ -12,7 +12,7 @@
  *   7. KLOG_FATAL 终止测试 (最后执行, 会终止程序)
  */
 
-#include "../base/KF.hpp"
+#include "base/KF.hpp"
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
@@ -31,10 +31,7 @@ static std::string HexCode(Code c)
 
 int main()
 {
-    KBegin(read(Preprocess(
-        "\"title\": \"dbgKLOGGER 模块测试\","
-        "\"description\": \"KLOGGER 日志模块全功能测试\""
-    )));
+    KBegin("dbgKLOGGER 模块测试", "KLOGGER 日志模块全功能测试");
 
     // ==================== 1. 日志宏 ====================
     SECTION("1. KLOG_INFO / WARNING / ERROR");

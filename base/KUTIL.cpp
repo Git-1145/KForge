@@ -1,4 +1,4 @@
-#include "KF.hpp"
+#include "base/KF.hpp"
 namespace KF 
 {
     namespace KUTIL
@@ -7,7 +7,7 @@ namespace KF
         static std::mt19937 gen(rd());
         sdlimb RandInt(sdlimb min, sdlimb max)
         {
-            std::uniform_int_distribution<int> dist(min, max);
+            std::uniform_int_distribution<sdlimb> dist(min, max);
             return dist(gen);
         }
         sdlimb Pow10(sdlimb n)

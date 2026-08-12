@@ -23,13 +23,9 @@ using Code = uint32_t;
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 #endif
-/////////////////////////////////////////////////////////
 // 日志宏：自动捕获调用位置（文件名:行号:函数名）
 // 用法：KLOG_ERROR(code, "extra")  替代  KLOG::Error(code, "extra")
-// @attention C++17 无法用默认参数捕获 __FILE__/__LINE__，必须用宏
-// @note    宏定义放在 namespace KF 之前，使头文件内（如 KCLI::Kin 模板）
-//          也能使用 KLOG_WARNING 等，展开时才解析 ::KF::KLOGGER::xxx
-/////////////////////////////////////////////////////////
+/// @attention C++17 无法用默认参数捕获 __FILE__/__LINE__，必须用宏
 #define KLOG_ERROR(code, extra)     ::KF::KLOGGER::Error(code, extra, __FILE__, __LINE__, __FUNCTION__)
 #define KLOG_WARNING(code, extra)   ::KF::KLOGGER::Warning(code, extra, __FILE__, __LINE__, __FUNCTION__)
 #define KLOG_INFO(code, extra)      ::KF::KLOGGER::Info(code, extra, __FILE__, __LINE__, __FUNCTION__)
@@ -175,6 +171,14 @@ namespace KF
         BigNum AbsMod(const BigNum& a, const BigNum& b);
         BigNum AbsPow(const BigNum& a, const BigNum& b);
 
+        BigNum AbsMulSchool(const BigNum& a, const BigNum& b); // 乘法（朴素算法）
+        BigNum AbsMulKaratsuba(const BigNum& a, const BigNum& b); // 乘法（Karatsuba 算法）
+        BigNum AbsMulToomCook3(const BigNum& a, const BigNum& b); // 乘法（Toom-Cook 3 算法）
+        BigNum AbsMulNTT(const BigNum& a, const BigNum& b); // 乘法（NTT 算法）
+
+        BigNum DivSchool(const BigNum& a, const BigNum& b); // 除法（朴素算法）
+        BigNum DivNewton(const BigNum& a, const BigNum& b); // 除法（牛顿迭代法）
+        BigNum DivNewtonMod(const BigNum& a, const BigNum& b); // 除法（牛顿迭代法）取模
         class BigNum
         {
             public:
@@ -216,7 +220,6 @@ namespace KF
         std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0
         BigNum RandBigNum(bool isneg=false,size_t IntSize=0ULL,size_t DecSize=0ULL); // 生成随机大数(整数位数 前面几个正负号 小数位数)
     }
-
     namespace KSON
     {
         class NodePtr;
@@ -445,8 +448,9 @@ namespace KF
 
         /// @brief 初始化 CLI：启用 VT100 颜色，设置控制台标题（支持中文），
         ///        打印标题框和描述
-        /// @param config KSON 节点，需含 "title" 字段，可选 "description"
-        void KBegin(const KSON::kson& config);
+        /// @param title 标题（留空则不打印标题框）
+        /// @param description 描述（留空则不打印描述）
+        void KBegin(const std::string& title, const std::string& description = "");
 
         /// @brief 显示选项菜单，循环等待用户输入合法选项
         /// @param menu KSON 节点，需含 "title" 和 "options"（字符串数组）
@@ -508,6 +512,7 @@ namespace KF
         /// @brief 打印所有计时器信息（格式化表格，按名称排序）
         void PrintAllTimers();
     }
+    /// @brief 实用库
     namespace KUTIL
     {
         sdlimb RandInt(sdlimb min, sdlimb max); ///< 生成 [min, max] 范围内的随机整数

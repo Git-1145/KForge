@@ -174,7 +174,8 @@ auto val = doc["test"]["main"]["Array_Test"][0];
 ```cpp
 string Preprocess(string_view raw);     // 去注释(#)、去空白、保留字符串内容
 kson   read(string_view processed);      // 解析预处理后文本
-kson   ReadKsonFile(string filepath);    // 一站式：读文件→预处理→解析
+kson   ReadKsonFile(std::string filepath);    // 一站式：读文件→预处理→解析
+> **配置文件路径**：kson 文件统一放在根目录 `config/` 下。测试数据使用 `config/test/cfg.kson`，通用配置使用 `config/config.kson`。路径相对于项目根目录（运行 exe 时 CWD 须为项目根）。
 ```
 
 ---
@@ -222,7 +223,7 @@ int age; string name; kin >> age >> name;       // 每次读一行
 
 | 函数 | 说明 |
 |------|------|
-| `KBegin(kson config)` | 初始化 CLI：启用 VT100、UTF-8、设置标题、打印标题框。入参 `"title"`/`"description"` |
+| `KBegin(title, description="")` | 初始化 CLI：启用 VT100、UTF-8、设置标题、打印标题框。直接传字符串，无需 kson |
 | `KOptions(kson menu)` | 显示选项菜单，返回选中索引(0-based)。入参 `"title"`/`"options":[...]` |
 | `kpause()` | 显示"按任意键继续..."并等待 |
 | `KEnd()` | `kpause()` + `exit(0)` |
@@ -347,42 +348,49 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 
 ## 构建系统
 
-### 脚本一览
+### 一键构建
 
-| 脚本 | 位置 | 用途 |
-|------|------|------|
-| `kforge_setup.bat` | 根目录 | 由 gen_builds.bat 生成，自动检测 MSVC 和 Windows SDK，设置编译环境（被其他脚本调用） |
-| `kforge_build.bat` | 根目录 | 编译单个 cpp，链接 base 全部 cpp，生成 exe |
-| `kforge_build_all.bat` | 根目录 | 由 gen_builds.bat 生成，遍历 test\ 和 study\ 下所有 build.bat 并执行 |
-| `gen_builds.bat` | 根目录 | 先删除所有已生成的 bat，再重新生成 kforge_setup.bat / kforge_build_all.bat / 各子目录 build.bat |
-| `build.bat` | 子目录 | 由 gen_builds.bat 生成，删除旧 exe，编译当前目录所有 cpp |
+| 脚本/文件 | 位置 | 用途 |
+|-----------|------|------|
+| `init_build.bat` | 根目录 | 预编译 `base/KF.lib` + 在 `study/` 下含 .cpp 的目录生成 `build.bat` / `fast_build.bat` |
+| `build.bat` | study/ 子目录 | 由 init_build 生成，美观 CLI 选择文件编译 |
+| `fast_build.bat` | study/ 子目录 | 由 init_build 生成，自动编译全部文件 |
+| `cancel_init.bat` | 根目录 | 清理所有构建产物（KF.lib、obj、Release/、生成的 bat） |
+| `CMakeLists.txt` | 根目录 | 可选，供 IDE / CI 使用（实际编译用 build.bat） |
 
-### kforge_setup.bat
+### init_build.bat
 
-通过 `vswhere.exe` 自动检测 Visual Studio 安装路径，调用 `vcvarsall.bat x64` 初始化 MSVC 环境。然后自动检测 Windows SDK 版本，追加 UCRT 头文件和库路径。不使用 `setlocal`，环境变量直接传播给调用者。
+运行 `init_build.bat` 后：
+1. 设置 MSVC 环境
+2. 增量预编译 `base/*.cpp` → `base/obj/*.obj` → `base/KF.lib`
+3. 扫描 `study/` 下所有含 .cpp 的子目录
+4. 每个目录生成 `build.bat` + `fast_build.bat`
 
-### kforge_build.bat
+### build.bat / fast_build.bat
 
-调用 `kforge_setup.bat` 设置环境后，使用 `/O2 /std:c++17 /utf-8 /EHsc /MD` 编译，链接 `/OPT:REF /OPT:ICF` 减小体积。用法：`kforge_build.bat 文件.cpp`。
+每个脚本自包含，直接调用 `cl.exe` + `link.exe`，不依赖 CMake：
 
-### gen_builds.bat
-
-运行后先删除所有已生成的 bat 文件（`kforge_setup.bat`、`kforge_build_all.bat`、各子目录 `build.bat`），然后重新生成：
-- **kforge_setup.bat**：MSVC 环境配置模板（自动检测 VS + SDK）
-- **kforge_build_all.bat**：批量编译模板（遍历 test\ 和 study\ 下所有 build.bat 并执行）
-- **各子目录 build.bat**：深度遍历 `test\` 和 `study\` 下所有含 `.cpp` 的目录，生成增量编译脚本
-
-生成的 build.bat 流程：调用 `kforge_setup.bat` → 检查 `.cpp` 修改时间，未修改则跳过（增量编译）→ 编译每个 `.cpp`（链接 base 全部 cpp）→ 编译后删除 `.obj`。
-
-### tasks.json
-
-VS Code 任务配置：`kforge build (O2)` 调用 `kforge_build.bat` 编译当前文件（默认构建任务），`kforge run` 编译后运行对应 exe。
+- **build.bat**：显示文件列表，输入编号选择（如 `1,3`），Enter 编译全部。每次运行前清空 `Release/`
+- **fast_build.bat**：自动编译全部文件，每次运行前清空 `Release/`
+- 编译产物（exe）输出到同目录的 `Release/` 文件夹
 
 ### 编译要求
 
 - Visual Studio 2022（含 C++ 工具链）
 - Windows 10 SDK
-- 首次使用运行 `gen_builds.bat` 生成子目录构建脚本
+- 首次使用运行 `init_build.bat`
+
+### 配置文件结构
+
+```
+项目根目录
+├── config/
+│   ├── config.kson        # 通用配置（KBegin 使用）
+│   └── test/
+│       └── cfg.kson       # 测试数据配置
+├── base/                  # 基础库源码
+├── test/                  # 测试程序
+└── study/                 # 学习示例
 
 ---
 
@@ -440,18 +448,15 @@ VS Code 任务配置：`kforge build (O2)` 调用 `kforge_build.bat` 编译当�
 ## 快速上手
 
 ```cpp
-#include "KF.hpp"
+#include "base/KF.hpp"
 using namespace KSON;
 using namespace KCLI;
 
 int main() {
-    KBegin(read(Preprocess(
-        "\"title\": \"我的应用\","
-        "\"description\": \"KForge 框架演示\""
-    )));
+    KBegin("MyApp", "Application description");
 
     kout << "程序启动" << std::endl;
-    kson doc = ReadKsonFile("cfg.kson");
+    kson doc = ReadKsonFile("config/config.kson");
     kout << "版本: " << doc["version"].Auto() << std::endl;
 
     auto arr = doc["tags"];

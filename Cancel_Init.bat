@@ -1,10 +1,14 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
 REM ============================================
 REM Cancel_Init.bat
-REM   Deletes all build.bat, base/KF.lib, base/obj/,
-REM   .exe, and .ktemp in test/ and study/.
+REM   Clean up all build artifacts:
+REM     - build.bat / fast_build.bat in study/
+REM     - Release/ folders in study/ and test/
+REM     - base/KF.lib
+REM     - base/obj/
+REM     - build/ (CMake, if present)
 REM ============================================
 
 echo ============================================
@@ -15,27 +19,33 @@ echo.
 set "ROOT=%~dp0"
 set "ROOT=%ROOT:~0,-1%"
 
-echo [1/5] Deleting all build.bat ...
-for /r "%ROOT%\test" %%b in (build.bat) do if exist "%%b" del "%%b"
-for /r "%ROOT%\study" %%b in (build.bat) do if exist "%%b" del "%%b"
+echo [1/6] Deleting build.bat / fast_build.bat in study\ ...
+for /r "%ROOT%\study" %%b in (build.bat fast_build.bat) do if exist "%%b" del "%%b"
 echo       Done.
 
-echo [2/5] Deleting base\KF.lib ...
+echo [2/6] Deleting Release\ folders in study\ ...
+for /d %%d in ("%ROOT%\study\*") do (
+    for /d %%e in ("%%d\*") do (
+        if exist "%%e\Release" rd /s /q "%%e\Release"
+    )
+    if exist "%%d\Release" rd /s /q "%%d\Release"
+)
+echo       Done.
+
+echo [3/6] Deleting Release\ in test\ ...
+if exist "%ROOT%\test\Release" rd /s /q "%ROOT%\test\Release"
+echo       Done.
+
+echo [4/6] Deleting base\KF.lib ...
 if exist "%ROOT%\base\KF.lib" del "%ROOT%\base\KF.lib"
 echo       Done.
 
-echo [3/5] Deleting base\obj\ ...
+echo [5/6] Deleting base\obj\ ...
 if exist "%ROOT%\base\obj" rd /s /q "%ROOT%\base\obj"
 echo       Done.
 
-echo [4/5] Deleting all .exe ...
-for /r "%ROOT%\test" %%e in (*.exe) do if exist "%%e" del "%%e"
-for /r "%ROOT%\study" %%e in (*.exe) do if exist "%%e" del "%%e"
-echo       Done.
-
-echo [5/5] Deleting .ktemp folders ...
-for /r "%ROOT%\test" %%d in (.ktemp) do if exist "%%d" rd /s /q "%%d"
-for /r "%ROOT%\study" %%d in (.ktemp) do if exist "%%d" rd /s /q "%%d"
+echo [6/6] Deleting build\ (CMake) ...
+if exist "%ROOT%\build" rd /s /q "%ROOT%\build"
 echo       Done.
 
 echo.

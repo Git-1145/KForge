@@ -5,7 +5,7 @@
     "intro":
     {
         "name": "cfg.kson",
-        "description": "KSON full feature test cfg",
+        "description": "KSON full feature test config",
         "author": "KForge"
     },
 
@@ -79,7 +79,7 @@
 
     "cli_test":
     {
-        "title": "CLI test cfg",
+        "title": "CLI test config",
         "description": "for KCLI test",
         "options": ["Option A", "Option B", "Option C"]
     },

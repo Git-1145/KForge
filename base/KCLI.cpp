@@ -1,4 +1,4 @@
-#include "KF.hpp"
+#include "base/KF.hpp"
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
@@ -72,14 +72,11 @@ namespace KF
         // CLI 功能函数实现
         /////////////////////////////////////////////////////////
 
-        void KBegin(const kson& config)
+        void KBegin(const std::string& title, const std::string& description)
         {
             // 启用 VT100 颜色 + UTF-8 输出
             EnableVT100();
             SetConsoleOutputCP(CP_UTF8);
-
-            std::string title = GetStr(config, "title");
-            std::string desc  = GetStr(config, "description");
 
             // 设置控制台窗口标题（支持中文）
             if (!title.empty())
@@ -98,8 +95,8 @@ namespace KF
             }
 
             // 打印描述
-            if (!desc.empty())
-                std::cout << desc << "\n";
+            if (!description.empty())
+                std::cout << description << "\n";
             std::cout << std::endl;
         }
 

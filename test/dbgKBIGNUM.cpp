@@ -1,12 +1,12 @@
-#include "../base/KF.hpp"
+#include "base/KF.hpp"
 using namespace KBIGNUM;
 using namespace KCLI;
 using namespace KSON;
 using namespace KTIMER;
 int main()
 {
-    auto file = ReadKsonFile("cfg.kson");
-    KBegin(file);
+    KBegin("dbgKBIGNUM 模块测试", "KBIGNUM 大数运算模块全功能测试");
+    auto file = ReadKsonFile("config/test/cfg.kson");
 
     /// @brief 测试 Normalize 函数
     auto root1 = file["bignum"]["normalize"];
@@ -61,8 +61,10 @@ int main()
         BigNum B(root3["B"][i].Auto());
         kout << '|'<< A << " + " << B << '|' << " -> " << AbsAdd(A, B) << "\n";
         kout << '|'<< A << " - " << B << '|' <<" -> " << AbsSub(A, B) << "\n";
+        kout << '|'<< A << " * " << B << '|' << " -> " << AbsMul(A, B) << "\n";
         kout << A << " + " << B << " -> " << A + B << "\n";
         kout << A << " - " << B << " -> " << A - B << "\n";
+        kout << A << " * " << B << " -> " << A * B << "\n";
         auto cmp = AbsCmp(A, B);
         kout << A << " cmp " << B << " -> " << cmp;
         kout << " (" << (cmp > 0 ? "A>B" : (cmp == 0 ? "A=B" : "A<B")) << ")\n";

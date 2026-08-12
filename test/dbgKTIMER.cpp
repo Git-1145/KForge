@@ -21,7 +21,7 @@
  *  16. 边界情况 (空名字 / 已删除 / 不存在)
  */
 
-#include "../base/KF.hpp"
+#include "base/KF.hpp"
 #include <thread>
 using namespace KFIO;
 using namespace KSON;
@@ -34,10 +34,7 @@ using namespace KTIMER;
 
 int main()
 {
-    KBegin(read(Preprocess(
-        "\"title\": \"dbgKTIMER 计时器模块测试\","
-        "\"description\": \"KTIMER 计时器模块全功能测试\""
-    )));
+    KBegin("dbgKTIMER 计时器模块测试", "KTIMER 计时器模块全功能测试");
 
     // ==================== 1. AddTimer 新建计时器 ====================
     SECTION("1. AddTimer 新建计时器");

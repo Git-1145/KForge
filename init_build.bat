@@ -1,211 +1,69 @@
 @echo off
+
+REM --setup mode: configure MSVC env in CALLER's environment.
+REM IMPORTANT: must run BEFORE setlocal, otherwise vcvarsall.bat's
+REM INCLUDE/LIB/PATH would be discarded when this script exits.
+if "%~1"=="--setup" goto :msvc_setup
+
 setlocal enabledelayedexpansion
 
 REM ============================================
-REM init_build.bat
-REM   no args  : delete all build.bat, precompile base/obj + KF.lib, generate build.bat
-REM   --setup  : MSVC env setup only
-REM   --build-dir "path" : setup + compile+link all cpp in path
+REM init_build.bat  -  KForge Build Generator
+REM
+REM   1. Setup MSVC environment
+REM   2. Precompile base/*.cpp -> base/obj/*.obj -> base/KF.lib
+REM   3. Scan study/ + test/ for directories containing .cpp files
+REM   4. Generate build.bat + fast_build.bat in each
+REM
+REM   No args needed. Run from project root.
+REM   --setup : MSVC env setup only (called by generated build.bat)
 REM ============================================
 
-if "%~1"=="--setup"      goto :setup_only
-if "%~1"=="--build-dir"  goto :build_dir
+set "ROOT=%~dp0"
+set "ROOT=%ROOT:~0,-1%"
+set "BASE=%ROOT%\base"
+set "BASE_OBJ=%BASE%\obj"
+set "KFLIB=%BASE%\KF.lib"
 
-REM ========== Main: delete + precompile + generate ==========
 echo ============================================
 echo   KForge - Init Build
 echo ============================================
 echo.
 
-set "ROOT=%~dp0"
-set "ROOT=%ROOT:~0,-1%"
-set "BASE=%ROOT%\base"
-
-echo [1/4] Deleting all build.bat ...
-for /r "%ROOT%\test" %%b in (build.bat) do if exist "%%b" del "%%b"
-for /r "%ROOT%\study" %%b in (build.bat) do if exist "%%b" del "%%b"
-echo       Done.
-echo.
-
-echo [2/4] MSVC environment setup ...
+REM [1/4] MSVC setup
+echo [1/4] MSVC environment setup ...
 call :msvc_setup
-if errorlevel 1 (
-    echo [ERROR] MSVC setup failed.
-    pause
-    exit /b 1
-)
+if errorlevel 1 goto :err
 echo       Done.
 echo.
 
-echo [3/4] Precompiling base\obj + KF.lib ...
+REM [2/4] Precompile base/KF.lib
+echo [2/4] Precompiling base\obj + KF.lib ...
 call :precompile_base
-if errorlevel 1 (
-    echo [ERROR] Base precompilation failed.
-    pause
-    exit /b 1
-)
-echo.
-
-echo [4/4] Generating per-directory build.bat ...
-call :gen_builds "%ROOT%\test"
-call :gen_builds "%ROOT%\study"
+if errorlevel 1 goto :err
 echo       Done.
 echo.
 
-echo All build scripts generated.
-echo Run build.bat in any subdirectory of test\ or study\ to compile.
+REM [3/4] Clean old scripts
+echo [3/4] Cleaning old build.bat / fast_build.bat ...
+for /r "%ROOT%\study" %%b in (build.bat fast_build.bat) do if exist "%%b" del "%%b"
+for /r "%ROOT%\test"  %%b in (build.bat fast_build.bat) do if exist "%%b" del "%%b"
+echo       Done.
 echo.
+
+REM [4/4] Generate scripts
+echo [4/4] Generating build.bat + fast_build.bat ...
+call :gen_scripts "%ROOT%\study"
+call :gen_scripts "%ROOT%\test"
+echo       Done.
+echo.
+
+echo ============================================
+echo   All build scripts generated.
+echo   Run build.bat in any study\ subdirectory.
+echo ============================================
 pause
-endlocal
-exit /b 0
-
-REM ========== --build-dir: compile+link one directory ==========
-:build_dir
-call :msvc_setup
-if errorlevel 1 exit /b 1
-
-set "ROOT=%~dp0"
-set "ROOT=%ROOT:~0,-1%"
-set "BASE=%ROOT%\base"
-set "KFLIB=%BASE%\KF.lib"
-set "CXXFLAGS=/O2 /std:c++17 /utf-8 /EHsc /MD /I%BASE%"
-set "LINKFLAGS=/OPT:REF /OPT:ICF /SUBSYSTEM:CONSOLE"
-
-REM Ensure KF.lib exists - precompile if missing
-if not exist "%KFLIB%" (
-    echo   [INFO] KF.lib not found, precompiling ...
-    call :precompile_base
-    if errorlevel 1 exit /b 1
-)
-
-set "dir=%~2"
-if "!dir:~-1!"=="\" set "dir=!dir:~0,-1!"
-
-echo.
-echo ===== [!dir!] =====
-
-REM List .cpp files into numbered array
-set "filecount=0"
-for %%f in ("%dir%\*.cpp") do (
-    set /a filecount+=1
-    set "file_!filecount!=%%~nxf"
-    set "filepath_!filecount!=%%f"
-)
-
-if "!filecount!"=="0" (
-    echo   [INFO] No .cpp files found.
-    pause
-    exit /b 0
-)
-
-REM Show file list
-echo   Files in this directory:
-for /l %%i in (1,1,!filecount!) do (
-    echo     %%i. !file_%%i!
-)
-echo.
-
-REM Prompt for selection
-set "choice="
-set /p "choice=  Enter numbers (e.g. 1,3,5) or Enter for all: "
-
-REM Determine mode: if choice undefined or only spaces/commas -> compile all
-set "compileall=1"
-if defined choice (
-    set "sel=!choice:,= !"
-    set "seltrimmed=!sel: =!"
-    if not "!seltrimmed!"=="" set "compileall=0"
-)
-
-if "!compileall!"=="1" (
-    REM Compile all - incremental (force=0)
-    for /l %%i in (1,1,!filecount!) do (
-        call :compile_one "!filepath_%%i!" 0
-        if errorlevel 1 (
-            pause
-            exit /b 1
-        )
-    )
-) else (
-    REM Compile selected - force rebuild (force=1)
-    for %%n in (!sel!) do (
-        if defined filepath_%%n (
-            call :compile_one "!filepath_%%n!" 1
-            if errorlevel 1 (
-                pause
-                exit /b 1
-            )
-        ) else (
-            echo   [WARN] Invalid number: %%n
-        )
-    )
-)
-
-echo   [DONE]
-pause
-endlocal
-exit /b 0
-
-REM ========== :compile_one ==========
-REM %1 = file path, %2 = force (0=incremental, 1=force rebuild)
-:compile_one
-set "cf=%~1"
-set "cfn=%~n1"
-set "cfx=%~x1"
-set "force=%~2"
-
-set "build=1"
-if "!force!"=="0" (
-    if exist "%dir%\%cfn%.exe" (
-        for %%a in ("%cf%") do for %%b in ("%dir%\%cfn%.exe") do (
-            if "%%~ta" LEQ "%%~tb" set "build=0"
-        )
-    )
-)
-
-if "!build!"=="1" (
-    if exist "%dir%\%cfn%.exe" del "%dir%\%cfn%.exe"
-    echo   [BUILD] %cfn%%cfx%
-
-    if exist "%dir%\.ktemp" rd /s /q "%dir%\.ktemp"
-    mkdir "%dir%\.ktemp"
-
-    cl /c %CXXFLAGS% "%cf%" /Fo:"%dir%\.ktemp\%cfn%.obj"
-    if errorlevel 1 (
-        echo   [FAIL] %cfn%%cfx% - compilation error
-        rd /s /q "%dir%\.ktemp"
-        exit /b 1
-    )
-
-    link %LINKFLAGS% "%KFLIB%" "%dir%\.ktemp\%cfn%.obj" /out:"%dir%\%cfn%.exe"
-    if errorlevel 1 (
-        echo   [RETRY] Link failed, recompiling KF.lib ...
-        if exist "%KFLIB%" del "%KFLIB%"
-        call :precompile_base
-        if errorlevel 1 (
-            echo   [FAIL] %cfn%%cfx% - KF.lib recompile error
-            rd /s /q "%dir%\.ktemp"
-            exit /b 1
-        )
-        link %LINKFLAGS% "%KFLIB%" "%dir%\.ktemp\%cfn%.obj" /out:"%dir%\%cfn%.exe"
-        if errorlevel 1 (
-            echo   [FAIL] %cfn%%cfx% - linking error
-            rd /s /q "%dir%\.ktemp"
-            exit /b 1
-        )
-    )
-
-    rd /s /q "%dir%\.ktemp"
-    echo   [OK] %cfn%%cfx%
-) else (
-    echo   [SKIP] %cfn%%cfx%
-)
-exit /b 0
-
-REM ========== --setup: MSVC env only ==========
-:setup_only
-call :msvc_setup
-exit /b %errorlevel%
+goto :end
 
 REM ========== :msvc_setup ==========
 :msvc_setup
@@ -213,17 +71,17 @@ set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (
     echo [ERROR] vswhere.exe not found - install VS 2022
-    exit /b 1
+    goto :err
 )
 for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -property installationPath`) do set "VSROOT=%%i"
 if not defined VSROOT (
     echo [ERROR] VS installation not found
-    exit /b 1
+    goto :err
 )
 call "%VSROOT%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] vcvarsall.bat failed
-    exit /b 1
+    goto :err
 )
 set "SDKROOT=%ProgramFiles(x86)%\Windows Kits\10"
 if not exist "%SDKROOT%\Include" set "SDKROOT=%ProgramFiles%\Windows Kits\10"
@@ -241,12 +99,8 @@ if defined SDKVER (
 exit /b 0
 
 REM ========== :precompile_base ==========
-REM Compiles base/*.cpp to base/obj/*.obj (incremental)
-REM Then packs all .obj into base/KF.lib (if any recompiled or lib missing)
 :precompile_base
-set "BASE_OBJ=%BASE%\obj"
-set "KFLIB=%BASE%\KF.lib"
-set "PCFLAGS=/O2 /std:c++17 /utf-8 /EHsc /MD /I%BASE%"
+set "PCFLAGS=/O2 /std:c++17 /utf-8 /EHsc /MD /I%ROOT%"
 if not exist "%BASE_OBJ%" mkdir "%BASE_OBJ%"
 
 set "recompiled=0"
@@ -263,7 +117,7 @@ for %%f in ("%BASE%\*.cpp") do (
         echo   [COMPILE] %%~nxf
         cl /c !PCFLAGS! "%%f" /Fo:"!obj!"
         if errorlevel 1 (
-            echo [ERROR] Failed to compile base: %%~nxf
+            echo [ERROR] Failed to compile: %%~nxf
             exit /b 1
         )
         set "recompiled=1"
@@ -272,7 +126,6 @@ for %%f in ("%BASE%\*.cpp") do (
     )
 )
 
-REM (Re)create KF.lib if any .obj was recompiled or lib is missing
 if "!recompiled!"=="1" goto :build_lib
 if not exist "%KFLIB%" goto :build_lib
 echo   [SKIP] KF.lib up-to-date
@@ -290,17 +143,198 @@ if errorlevel 1 (
 echo   [LIB] KF.lib created.
 exit /b 0
 
-REM ========== :gen_builds - recursive generate ==========
-:gen_builds
+REM ========== :gen_scripts - recursive ==========
+:gen_scripts
 set "dir=%~1"
 set "has=0"
 for %%f in ("%dir%\*.cpp") do set "has=1"
 if "!has!"=="1" (
-    set "out=%dir%\build.bat"
-    echo   [GEN] !out!
-    > "!out!" echo @echo off
-    >>"!out!" echo call "%ROOT%\init_build.bat" --build-dir "%%~dp0"
-    >>"!out!" echo pause
+    call :write_build_bat  "%dir%"
+    call :write_fast_build "%dir%"
+    echo   [GEN] %dir%\build.bat + fast_build.bat
 )
-for /d %%d in ("%dir%\*") do call :gen_builds "%%d"
+for /d %%d in ("%dir%\*") do call :gen_scripts "%%d"
+exit /b 0
+
+REM ========== :write_build_bat ==========
+REM   %1 = target directory
+:write_build_bat
+set "dir=%~1"
+set "rel=%dir%"
+set "rel=!rel:%ROOT%\=!"
+set "out=%dir%\build.bat"
+setlocal disabledelayedexpansion
+
+> "%out%" echo @echo off
+>>"%out%" echo setlocal enabledelayedexpansion
+>>"%out%" echo.
+>>"%out%" echo REM Auto-generated by init_build.bat - Selective build
+>>"%out%" echo set "DIR=%dir%"
+>>"%out%" echo set "KFLIB=%KFLIB%"
+>>"%out%" echo set "CXXFLAGS=/O2 /std:c++17 /utf-8 /EHsc /MD /I%ROOT%"
+>>"%out%" echo set "LINKFLAGS=/OPT:REF /OPT:ICF /SUBSYSTEM:CONSOLE"
+>>"%out%" echo.
+>>"%out%" echo REM Setup MSVC environment if not already set
+>>"%out%" echo if not defined INCLUDE call "%ROOT%\init_build.bat" --setup
+>>"%out%" echo.
+>>"%out%" echo set "filecount=0"
+>>"%out%" echo for %%%%f in ("!DIR!\*.cpp") do (
+>>"%out%" echo     set /a filecount+=1
+>>"%out%" echo     set "file_!filecount!=%%%%~nxf"
+>>"%out%" echo     set "filepath_!filecount!=%%%%f"
+>>"%out%" echo )
+>>"%out%" echo.
+>>"%out%" echo if "!filecount!"=="0" (
+>>"%out%" echo     echo No .cpp files found.
+>>"%out%" echo     pause
+>>"%out%" echo     exit /b 0
+>>"%out%" echo )
+>>"%out%" echo.
+>>"%out%" echo echo +----------------------------------------+
+>>"%out%" echo echo   KForge Build  -  %rel%
+>>"%out%" echo echo +----------------------------------------+
+>>"%out%" echo echo.
+>>"%out%" echo echo   Files in this directory:
+>>"%out%" echo for /l %%%%i in (1,1,!filecount!) do echo     %%%%i. !file_%%%%i!
+>>"%out%" echo echo.
+>>"%out%" echo set "choice="
+>>"%out%" echo set /p "choice=  Select numbers (e.g. 1,3) or Enter for all: "
+>>"%out%" echo.
+>>"%out%" echo if exist "!DIR!\Release" rd /s /q "!DIR!\Release"
+>>"%out%" echo mkdir "!DIR!\Release"
+>>"%out%" echo.
+>>"%out%" echo set "compileall=1"
+>>"%out%" echo if defined choice (
+>>"%out%" echo     set "sel=!choice:,= !"
+>>"%out%" echo     set "seltrimmed=!sel: =!"
+>>"%out%" echo     if not "!seltrimmed!"=="" set "compileall=0"
+>>"%out%" echo )
+>>"%out%" echo.
+>>"%out%" echo if "!compileall!"=="1" (
+>>"%out%" echo     for /l %%%%i in (1,1,!filecount!) do (
+>>"%out%" echo         call :compile_one "!filepath_%%%%i!" "!file_%%%%i:~0,-4!"
+>>"%out%" echo         if errorlevel 1 goto :build_err
+>>"%out%" echo     )
+>>"%out%" echo ) else (
+>>"%out%" echo     for %%%%n in (!sel!) do (
+>>"%out%" echo         if defined filepath_%%%%n (
+>>"%out%" echo             call :compile_one "!filepath_%%%%n!" "!file_%%%%n:~0,-4!"
+>>"%out%" echo             if errorlevel 1 goto :build_err
+>>"%out%" echo         ) else (
+>>"%out%" echo             echo   [WARN] Invalid: %%%%n
+>>"%out%" echo         )
+>>"%out%" echo     )
+>>"%out%" echo )
+>>"%out%" echo.
+>>"%out%" echo echo.
+>>"%out%" echo echo   [DONE] Build complete. Output: !DIR!\Release\
+>>"%out%" echo pause
+>>"%out%" echo goto :build_end
+>>"%out%" echo.
+>>"%out%" echo :compile_one
+>>"%out%" echo set "cf=%%~1"
+>>"%out%" echo set "cn=%%~2"
+>>"%out%" echo echo   [BUILD] !cn!.cpp
+>>"%out%" echo cl /c !CXXFLAGS! "!cf!" /Fo:"!DIR!\Release\!cn!.obj"
+>>"%out%" echo if errorlevel 1 (
+>>"%out%" echo     echo   [FAIL] !cn!.cpp - compile error
+>>"%out%" echo     exit /b 1
+>>"%out%" echo )
+>>"%out%" echo link !LINKFLAGS! "!KFLIB!" "!DIR!\Release\!cn!.obj" /out:"!DIR!\Release\!cn!.exe"
+>>"%out%" echo if errorlevel 1 (
+>>"%out%" echo     echo   [FAIL] !cn!.cpp - link error
+>>"%out%" echo     exit /b 1
+>>"%out%" echo )
+>>"%out%" echo del "!DIR!\Release\!cn!.obj"
+>>"%out%" echo echo   [OK] !cn!.cpp
+>>"%out%" echo exit /b 0
+>>"%out%" echo.
+>>"%out%" echo :build_err
+>>"%out%" echo echo   [ERROR] Build failed.
+>>"%out%" echo pause
+>>"%out%" echo exit /b 1
+>>"%out%" echo.
+>>"%out%" echo :build_end
+>>"%out%" echo endlocal
+>>"%out%" echo exit /b 0
+endlocal
+exit /b 0
+
+REM ========== :write_fast_build ==========
+REM   %1 = target directory
+:write_fast_build
+set "dir=%~1"
+set "rel=%dir%"
+set "rel=!rel:%ROOT%\=!"
+set "out=%dir%\fast_build.bat"
+setlocal disabledelayedexpansion
+
+> "%out%" echo @echo off
+>>"%out%" echo setlocal enabledelayedexpansion
+>>"%out%" echo.
+>>"%out%" echo REM Auto-generated by init_build.bat - Fast build all
+>>"%out%" echo set "DIR=%dir%"
+>>"%out%" echo set "KFLIB=%KFLIB%"
+>>"%out%" echo set "CXXFLAGS=/O2 /std:c++17 /utf-8 /EHsc /MD /I%ROOT%"
+>>"%out%" echo set "LINKFLAGS=/OPT:REF /OPT:ICF /SUBSYSTEM:CONSOLE"
+>>"%out%" echo.
+>>"%out%" echo REM Setup MSVC environment if not already set
+>>"%out%" echo if not defined INCLUDE call "%ROOT%\init_build.bat" --setup
+>>"%out%" echo.
+>>"%out%" echo set "filecount=0"
+>>"%out%" echo for %%%%f in ("!DIR!\*.cpp") do (
+>>"%out%" echo     set /a filecount+=1
+>>"%out%" echo     set "file_!filecount!=%%%%~nxf"
+>>"%out%" echo     set "filepath_!filecount!=%%%%f"
+>>"%out%" echo )
+>>"%out%" echo.
+>>"%out%" echo if "!filecount!"=="0" (
+>>"%out%" echo     echo No .cpp files found.
+>>"%out%" echo     pause
+>>"%out%" echo     exit /b 0
+>>"%out%" echo )
+>>"%out%" echo.
+>>"%out%" echo echo +----------------------------------------+
+>>"%out%" echo echo   KForge Fast Build  -  %rel%
+>>"%out%" echo echo +----------------------------------------+
+>>"%out%" echo echo.
+>>"%out%" echo if exist "!DIR!\Release" rd /s /q "!DIR!\Release"
+>>"%out%" echo mkdir "!DIR!\Release"
+>>"%out%" echo.
+>>"%out%" echo for /l %%%%i in (1,1,!filecount!) do (
+>>"%out%" echo     set "cf=!filepath_%%%%i!"
+>>"%out%" echo     set "cn=!file_%%%%i:~0,-4!"
+>>"%out%" echo     echo   [BUILD] !cn!.cpp
+>>"%out%" echo     cl /c !CXXFLAGS! "!cf!" /Fo:"!DIR!\Release\!cn!.obj"
+>>"%out%" echo     if errorlevel 1 (
+>>"%out%" echo         echo   [FAIL] !cn!.cpp
+>>"%out%" echo         pause
+>>"%out%" echo         exit /b 1
+>>"%out%" echo     )
+>>"%out%" echo     link !LINKFLAGS! "!KFLIB!" "!DIR!\Release\!cn!.obj" /out:"!DIR!\Release\!cn!.exe"
+>>"%out%" echo     if errorlevel 1 (
+>>"%out%" echo         echo   [FAIL] !cn!.cpp - link error
+>>"%out%" echo         pause
+>>"%out%" echo         exit /b 1
+>>"%out%" echo     )
+>>"%out%" echo     del "!DIR!\Release\!cn!.obj"
+>>"%out%" echo     echo   [OK] !cn!.cpp
+>>"%out%" echo )
+>>"%out%" echo.
+>>"%out%" echo echo.
+>>"%out%" echo echo   [DONE] All built. Output: !DIR!\Release\
+>>"%out%" echo pause
+>>"%out%" echo endlocal
+>>"%out%" echo exit /b 0
+endlocal
+exit /b 0
+
+REM ========== error / end ==========
+:err
+echo [ERROR] Task failed.
+pause
+exit /b 1
+
+:end
+endlocal
 exit /b 0

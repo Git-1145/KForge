@@ -24,7 +24,7 @@
  *  19.  边界与类型不匹配 (find/at/size 误用 + AsSth 类型不匹配)
  */
 
-#include "../base/KF.hpp"
+#include "base/KF.hpp"
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
@@ -40,10 +40,8 @@ using namespace KCLI;
 
 int main()
 {
-    KBegin(read(Preprocess(
-        "\"title\": \"dbgKSON 模块测试\","
-        "\"description\": \"KSON 解析模块全功能测试\""
-    )));
+    kson doc = ReadKsonFile("config/test/cfg.kson");
+    KBegin("dbgKSON 模块测试", "KSON 解析模块全功能测试");
 
     // ==================== 1. 字符串解析 ====================
     SECTION("1. 字符串解析");
@@ -85,22 +83,19 @@ int main()
     SECTION("2. 文件解析");
     {
         // ReadKsonFile: 一站式 读取 + 预处理 + 解析
-        kson doc = ReadKsonFile("cfg.kson");
-        CHECK(doc.Exists(), "ReadKsonFile 读取 cfg.kson");
+        kson doc = ReadKsonFile("config/test/cfg.kson");
+        CHECK(doc.Exists(), "ReadKsonFile 读取 config/test/cfg.kson");
         SHOW("intro.name",    doc["intro"]["name"].Auto());
         SHOW("intro.description", doc["intro"]["description"].Auto());
 
         // NodePtr::ParseFile 静态工厂
-        kson doc2 = NodePtr::ParseFile("cfg.kson");
-        CHECK(doc2.Exists(), "NodePtr::ParseFile 读取 cfg.kson");
+        kson doc2 = NodePtr::ParseFile("config/test/cfg.kson");
+        CHECK(doc2.Exists(), "NodePtr::ParseFile 读取 config/test/cfg.kson");
 
         // 手动流程: ReadFileRaw + Preprocess + read
-        kson doc3 = read(Preprocess(ReadFileRaw("cfg.kson")));
-        CHECK(doc3.Exists(), "手动流程读取 cfg.kson");
+        kson doc3 = read(Preprocess(ReadFileRaw("config/test/cfg.kson")));
+        CHECK(doc3.Exists(), "手动流程读取 config/test/cfg.kson");
     }
-
-    // 后续测试统一使用 ReadKsonFile 读取的 doc
-    kson doc = ReadKsonFile("cfg.kson");
 
     // ==================== 3. 节点类型判断 ====================
     SECTION("3. 节点类型判断");
@@ -300,7 +295,7 @@ int main()
     // ==================== 11. 注释 / 尾随逗号 ====================
     SECTION("11. 注释 / 尾随逗号");
     {
-        // cfg.kson 本身包含注释和尾随逗号
+        // config/test/cfg.kson 本身包含注释和尾随逗号
         CHECK(doc.Exists(), "含注释的文件解析成功");
 
         // 尾随逗号 - 数组
@@ -401,7 +396,7 @@ int main()
     // ==================== 17. BigNum / 科学计数法 ====================
     SECTION("17. BigNum / 科学计数法");
     {
-        // cfg.kson 中 kson_bignum 现为数组，共 10 个元素，按下标访问
+        // config/test/cfg.kson 中 kson_bignum 现为数组，共 10 个元素，按下标访问
         kson bn = doc["kson_bignum"];
         const Node* bnRoot = bn.TryResolve();
         CHECK(bnRoot && bnRoot->IsArray(), "kson_bignum 是数组");

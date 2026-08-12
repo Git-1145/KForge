@@ -1,0 +1,10 @@
+# KForge 通用配置文件
+# KBegin 不再读取此文件，此处保留为项目级配置示例
+# 如需使用: kson doc = ReadKsonFile("config/config.kson");
+
+{
+    "title": "KForge Application",
+    "description": "KForge framework runtime",
+    "version": 1.0,
+    "tags": ["prod", "v2"]
+}
