@@ -26,8 +26,9 @@ using namespace KCLI;
 
 int main()
 {
-    KBegin("dbgKCLI 模块测试", "KCLI 命令行交互模块全功能测试");
     kson doc = ReadKsonFile("config/test/cfg.kson");
+    kson main = doc["dbgKCLI"];
+    KBegin(main);
     // ==================== 1. kout 链式输出 ====================
     SECTION("1. kout 链式输出");
     {
@@ -125,8 +126,7 @@ int main()
     // ==================== 9. 从文件读取配置 ====================
     SECTION("9. 从文件读取配置的 KOptions");
     {
-        kson doc = ReadKsonFile("cfg/cfg.kson");
-        kson menu = doc["cli_test"];
+        kson menu = main["KOption"];
         size_t choice = KOptions(menu);
         kout << "  你选择了: [" << choice << "] " << menu["options"][choice].Auto() << std::endl;
     }

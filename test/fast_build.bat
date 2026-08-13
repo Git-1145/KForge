@@ -27,8 +27,7 @@ echo +----------------------------------------+
 echo   KForge Fast Build  -  test
 echo +----------------------------------------+
 echo.
-if exist "!DIR!\Release" rd /s /q "!DIR!\Release"
-mkdir "!DIR!\Release"
+if not exist "!DIR!\Release" mkdir "!DIR!\Release"
 
 for /l %%i in (1,1,!filecount!) do (
     set "cf=!filepath_%%i!"

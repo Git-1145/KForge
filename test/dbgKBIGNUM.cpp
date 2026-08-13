@@ -5,8 +5,10 @@ using namespace KSON;
 using namespace KTIMER;
 int main()
 {
-    KBegin("dbgKBIGNUM 模块测试", "KBIGNUM 大数运算模块全功能测试");
-    auto file = ReadKsonFile("config/test/cfg.kson");
+    auto doc = ReadKsonFile("config/test/cfg.kson");
+    auto file = doc["dbgKBIGNUM"];
+    auto ksonDoc = doc["dbgKSON"];
+    KBegin(file);
 
     /// @brief 测试 Normalize 函数
     auto root1 = file["bignum"]["normalize"];
@@ -73,7 +75,7 @@ int main()
     }
 
     /// @brief 测试 error_cases.normalize_errors (错误字符串)
-    auto root5 = file["error_cases"]["normalize_errors"];
+    auto root5 = ksonDoc["error_cases"]["normalize_errors"];
     for(size_t i = 0; i < root5.size(); i++)
     {
         std::string str = root5[i].Str();
@@ -84,7 +86,7 @@ int main()
     }
 
     /// @brief 测试科学计数法 和 大数B
-    auto root4 = file["kson_bignum"];
+    auto root4 = ksonDoc["kson_bignum"];
     for(size_t i = 0; i < root4.size(); i++)
     {
         auto a = root4[i].Auto();

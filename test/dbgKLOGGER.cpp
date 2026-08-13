@@ -31,7 +31,7 @@ static std::string HexCode(Code c)
 
 int main()
 {
-    KBegin("dbgKLOGGER 模块测试", "KLOGGER 日志模块全功能测试");
+    KBegin("dbgKLOGGER 模块测试", "KLOGGER 日志模块全功能测试","Git-1145");
 
     // ==================== 1. 日志宏 ====================
     SECTION("1. KLOG_INFO / WARNING / ERROR");

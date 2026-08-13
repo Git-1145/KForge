@@ -40,8 +40,8 @@ using namespace KCLI;
 
 int main()
 {
-    kson doc = ReadKsonFile("config/test/cfg.kson");
-    KBegin("dbgKSON 模块测试", "KSON 解析模块全功能测试");
+    kson doc = ReadKsonFile("config/test/cfg.kson")["dbgKSON"];
+    KBegin(doc);
 
     // ==================== 1. 字符串解析 ====================
     SECTION("1. 字符串解析");
@@ -83,7 +83,7 @@ int main()
     SECTION("2. 文件解析");
     {
         // ReadKsonFile: 一站式 读取 + 预处理 + 解析
-        kson doc = ReadKsonFile("config/test/cfg.kson");
+        kson doc = ReadKsonFile("config/test/cfg.kson")["dbgKSON"];
         CHECK(doc.Exists(), "ReadKsonFile 读取 config/test/cfg.kson");
         SHOW("intro.name",    doc["intro"]["name"].Auto());
         SHOW("intro.description", doc["intro"]["description"].Auto());

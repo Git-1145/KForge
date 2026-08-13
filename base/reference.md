@@ -29,6 +29,7 @@ KF
 ├── KFIO         文件读取
 ├── KTIMER       计时器管理
 ├── KBIGNUM      大数运算
+├── KUTILITY     内部工具函数(不必了解)
 └── KCLI         命令行 UI、链式 I/O
 ```
 
@@ -453,21 +454,13 @@ using namespace KSON;
 using namespace KCLI;
 
 int main() {
-    KBegin("MyApp", "Application description");
-
-    kout << "程序启动" << std::endl;
-    kson doc = ReadKsonFile("config/config.kson");
-    kout << "版本: " << doc["version"].Auto() << std::endl;
-
+    kson file = ReadKsonFile("config/config.kson");
+    kson main = file["test"]
+    KBegin(main);
     auto arr = doc["tags"];
     for (size_t i = 0; i < arr.size(); i++)
         kout << "  [" << i << "] " << arr[i].Auto() << std::endl;
-
-    kson menu = read(Preprocess(
-        "\"title\": \"请选择\","
-        "\"options\": [\"开始\", \"设置\", \"退出\"]"
-    ));
-    size_t choice = KOptions(menu);
+    size_t choice = KOptions(main["settings"]);
     KEnd();
 }
 ```

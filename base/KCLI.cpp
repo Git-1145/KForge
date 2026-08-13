@@ -6,13 +6,17 @@ using namespace KLOG;
 /**
  * @file KCLI.cpp
  * @brief KCLI 命令行交互模块实现
- *
+ * @version 1.0.0
+ * @date 2026-08-13
+ * @author Git-1145
  * KSON 配置格式（KBegin 入参）：
  *   "title": "应用标题",
- *   "description": "应用描述"
+ *   "description": "应用描述",
+ *   "author": "作者",
+ *   "cmdtitle": "命令行标题"
  *
  * KSON 配置格式（KOptions 入参，一个 kson 索引）：
- *   "title": "菜单标题",
+ *   "name": "菜单标题",
  *   "options": ["选项一", "选项二", "选项三"]
  */
 
@@ -71,39 +75,75 @@ namespace KF
         /////////////////////////////////////////////////////////
         // CLI 功能函数实现
         /////////////////////////////////////////////////////////
-
-        void KBegin(const std::string& title, const std::string& description)
+        /// @brief KBegin 内部实现
+        /// @param args 参数数组，语义由个数决定：
+        ///   2 参: [title, desc]            -> 窗口标题=title, 框=title/desc/空
+        ///   3 参: [title, desc, author]    -> 窗口标题=title, 框=title/desc/author
+        ///   4 参: [cmdtitle, title, desc, author] -> 窗口标题=cmdtitle, 框=title/desc/author
+        void KBeginImpl(const std::vector<std::string>& args)
         {
+            std::string cmdtitle, title, description, author;
+            if (args.size() >= 4)
+            {
+                cmdtitle    = args[0];
+                title       = args[1];
+                description = args[2];
+                author      = args[3];
+            }
+            else if (args.size() == 3)
+            {
+                cmdtitle = title = args[0];
+                description = args[1];
+                author      = args[2];
+            }
+            else // 2 参
+            {
+                cmdtitle = title = args[0];
+                description = args[1];
+            }
+
             // 启用 VT100 颜色 + UTF-8 输出
             EnableVT100();
             SetConsoleOutputCP(CP_UTF8);
-
-            // 设置控制台窗口标题（支持中文）
-            if (!title.empty())
-                SetTitleUTF8(title);
-
-            // 打印标题框（ASCII: + - |）
-            if (!title.empty())
-            {
-                size_t w = DisplayWidth(title);
-                std::string bar(w + 4, '-');
-                std::cout << Color::SkyBlue
-                          << "+" << bar << "+\n"
-                          << "|  " << title << "  |\n"
-                          << "+" << bar << "+"
-                          << Color::Reset << "\n";
-            }
-
-            // 打印描述
-            if (!description.empty())
-                std::cout << description << "\n";
+            SetTitleUTF8(cmdtitle);
+            size_t w = DisplayWidth(title);
+            if (DisplayWidth(description) > w) w = DisplayWidth(description);
+            if (DisplayWidth(author) > w) w = DisplayWidth(author);
+            std::string bar(w + 4, '-');
+            auto line = [w](const std::string& content) {
+                size_t pad = w - DisplayWidth(content);
+                std::cout << "|  " << content << std::string(pad, ' ') << "  |\n";
+            };
+            std::cout << Color::SkyBlue << "+" << bar << "+\n";
+            line(title);
+            line("");
+            line(description);
+            line(author);
+            std::cout << "+" << bar << "+" << Color::Reset << "\n";
             std::cout << std::endl;
         }
 
+        void KBegin(const KSON::kson file)
+        {
+            auto meta = file[FILE_META];
+            /// @attention 缺键不报错，用 Unknown 补充
+            auto get = [&meta](const char* key) {
+                auto v = meta[key];
+                if (!v.Exists()) return std::string(KBEGIN_UNKNOWN);
+                return v.Str();
+            };
+            std::string cmdtitle    = get(FILE_CMDTITLE);
+            std::string title       = get(FILE_TITLE);
+            std::string description = get(FILE_DESC);
+            std::string author      = get(FILE_AUTHOR);
+            // 窗口标题与框标题一致（保持原有行为）
+            std::vector<std::string> args{cmdtitle, title, description, author};
+            KBeginImpl(args);
+        }
         std::size_t KOptions(const kson& menu)
         {
-            std::string title = GetStr(menu, "title");
-            auto opts = menu["options"];
+            std::string title = GetStr(menu, FILE_OPTNAME);
+            auto opts = menu[FILE_OPTION];
             std::size_t count = opts.size();
 
             if (count == 0)

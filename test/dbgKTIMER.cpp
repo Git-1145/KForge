@@ -34,7 +34,7 @@ using namespace KTIMER;
 
 int main()
 {
-    KBegin("dbgKTIMER 计时器模块测试", "KTIMER 计时器模块全功能测试");
+    KBegin("dbgKTIMER 计时器模块测试", "KTIMER 计时器模块全功能测试","Git-1145");
 
     // ==================== 1. AddTimer 新建计时器 ====================
     SECTION("1. AddTimer 新建计时器");

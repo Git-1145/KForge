@@ -4,6 +4,9 @@ using namespace KLOG;
 /**
  * @file KTIMER.cpp
  * @brief KTIMER 计时器模块实现
+ * @version 1.0.0
+ * @date 2026-08-13
+ * @author Git-1145
  *
  * 功能：
  *   - AddTimer(name, unit)    新建计时器（指定名字和单位），创建后立即开始计时

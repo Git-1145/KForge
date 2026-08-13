@@ -1,14 +1,20 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "base/KF.hpp"
-#include <cerrno>
-#include <cstring>
+
+/**
+ * @file KFIO.cpp
+ * @brief KFIO 文件读取模块
+ * @version 1.0.0
+ * @date 2026-08-13
+ * @author Git-1145
+ */
+
+
 namespace KF
 {
     namespace KFIO
     {
         /// @brief 把相对/绝对路径解析为基于当前工作目录的绝对路径（用于失败诊断）
-        /// @note  使用 Win32 GetFullPathNameA，基准为进程 CWD，正好暴露
-        ///        "相对路径解析到了哪个目录" 这一排错关键信息
         static std::string ToAbsolute(std::string_view path)
         {
             char buf[MAX_PATH] = {0};

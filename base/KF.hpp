@@ -11,21 +11,33 @@
 #include<memory>
 #include<sstream>
 #include<limits>
+#include<cerrno>
 #include<chrono>
 #include<fstream>
 #include<iostream>
 #include<unordered_map>
 #include<variant>
+#include<cstring>
 #include<type_traits>
 using Code = uint32_t;
+/**
+ * @file KF.hpp
+ * @brief KForge 所有基础模块的声明文件
+ * @version 1.0.0
+ * @date 2026-08-13
+ * @author Git-1145
+ * @usage #include "KF.hpp"
+ * @usage using namespace xxx; // xxx 为模块名
+**/
 
-// 兜底定义：某些 SDK 版本或 IntelliSense 可能缺少此常量
+
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 #endif
 // 日志宏：自动捕获调用位置（文件名:行号:函数名）
 // 用法：KLOG_ERROR(code, "extra")  替代  KLOG::Error(code, "extra")
 /// @attention C++17 无法用默认参数捕获 __FILE__/__LINE__，必须用宏
+
 #define KLOG_ERROR(code, extra)     ::KF::KLOGGER::Error(code, extra, __FILE__, __LINE__, __FUNCTION__)
 #define KLOG_WARNING(code, extra)   ::KF::KLOGGER::Warning(code, extra, __FILE__, __LINE__, __FUNCTION__)
 #define KLOG_INFO(code, extra)      ::KF::KLOGGER::Info(code, extra, __FILE__, __LINE__, __FUNCTION__)
@@ -36,6 +48,15 @@ namespace KF
     using dlimb = uint64_t; // double limb
     using slimb = int32_t; // signed limb
     using sdlimb = int64_t; // signed double limb
+
+    constexpr const char* FILE_META = "meta";
+    constexpr const char* FILE_CMDTITLE = "cmdtitle";
+    constexpr const char* FILE_TITLE = "title";
+    constexpr const char* FILE_DESC = "description";
+    constexpr const char* FILE_AUTHOR = "author";
+    constexpr const char* FILE_OPTION = "options";
+    constexpr const char* FILE_OPTNAME = "name";
+    constexpr const char* KBEGIN_UNKNOWN = "Unknown"; // KBegin 读取配置缺键时的默认补充值
     namespace KLOGGER
     {
         /// @brief 输出 [ERROR] 级别日志（程序继续运行）
@@ -75,7 +96,6 @@ namespace KF
             constexpr uint32_t KBIGNUM = 0x02; // 大数模块
         }
 
-        /// @brief 由四段字段组装错误码，避免手写 8 位 16 进制而失手出错
         /// @param module 模块号 [aa]，2 位 16 进制（bit24-31）
         /// @param level  等级   [b]， 1 位 16 进制（bit20-23）
         /// @param type   类型   [cc]，2 位 16 进制（bit12-19）
@@ -448,10 +468,23 @@ namespace KF
 
         /// @brief 初始化 CLI：启用 VT100 颜色，设置控制台标题（支持中文），
         ///        打印标题框和描述
-        /// @param title 标题（留空则不打印标题框）
-        /// @param description 描述（留空则不打印描述）
-        void KBegin(const std::string& title, const std::string& description = "");
+        /// 字符串版本（可变参数，定义见下方模板）：
+        ///   KBegin(title, desc)                  // 2 参
+        ///   KBegin(title, desc, author)          // 3 参
+        ///   KBegin(cmdtitle, title, desc, author)// 4 参（cmdtitle 仅作窗口标题）
+        /// @param a 首参（2/3 参时为标题，4 参时为窗口标题）
+        /// @param b 次参（2/3 参时为描述，4 参时为框标题）
+        /// @param rest 剩余参数
+        void KBeginImpl(const std::vector<std::string>& args);// 内部实现：args[0]=窗口标题，其余为框内容
 
+        template<typename... Args>
+        void KBegin(const std::string& a, const std::string& b, Args... rest)
+        {
+            std::vector<std::string> args{a, b, rest...};
+            KBeginImpl(args);
+        }
+
+        void KBegin(const KSON::kson file);//从文件中读取
         /// @brief 显示选项菜单，循环等待用户输入合法选项
         /// @param menu KSON 节点，需含 "title" 和 "options"（字符串数组）
         /// @return 选中项索引（0-based），输入非法时循环提示
@@ -517,6 +550,8 @@ namespace KF
     {
         sdlimb RandInt(sdlimb min, sdlimb max); ///< 生成 [min, max] 范围内的随机整数
         sdlimb Pow10(sdlimb n); // 10的n次方
+        std::string MaxLenStr3(std::string a, std::string b, std::string c);
+        std::string MaxLenStr4(std::string a, std::string b, std::string c, std::string d);
     }
 }
 namespace KSON = KF::KSON;

@@ -1,4 +1,13 @@
 #include "base/KF.hpp"
+
+/**
+ * @file KUTIL.cpp
+ * @brief 内部工具模块
+ * @version 1.0.0
+ * @date 2026-08-13
+ * @author Git-1145
+ */
+
 namespace KF 
 {
     namespace KUTIL

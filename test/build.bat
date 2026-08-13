@@ -33,8 +33,7 @@ echo.
 set "choice="
 set /p "choice=  Select numbers (e.g. 1,3) or Enter for all: "
 
-if exist "!DIR!\Release" rd /s /q "!DIR!\Release"
-mkdir "!DIR!\Release"
+if not exist "!DIR!\Release" mkdir "!DIR!\Release"
 
 set "compileall=1"
 if defined choice (

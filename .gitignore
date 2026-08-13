@@ -1,13 +1,10 @@
 *.exe
 *.obj
-base/trash/*.cpp
-base/trash/*.hpp
 .trae/
 base/DEVLOG.md
 base/*.bat
 study/**/*.bat
 .vscode/
-base/obj/
 base/KF.lib
 build/
 CMakeFiles/
