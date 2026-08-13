@@ -11,22 +11,23 @@ KForge 是一个个人 C++ 学习项目，作为算法与 C++ 特性学习的实
 kForge/
 ├── base/              # 核心基础库
 │   ├── KF.hpp         # 模块声明与公共接口
-│   ├── FIO.cpp        # 自定义配置格式解析器（Document 类）
-│   ├── CLI.cpp        # 控制台交互封装
-│   ├── KTIMER.cpp     # 高精度计时器
+│   ├── FIO.cpp        # 自定义配置格式(json like)
+│   ├── CLI.cpp        # 控制台交互
+│   ├── KTIMER.cpp     # 计时器
 │   ├── UTILITY.cpp    # 通用工具函数
 │   └── references.md  # API 使用手册
 ├── test/              # 模块测试与系统测试
-│   ├── test_xxx.txt   # 复杂边界测试配置
 │   └── dbgxxx.cpp     # 自动化系统测试框架
 ├── study/             # 算法与 C++ 特性学习代码
-│   ├── algorithm/     # 排序、搜索算法
+│   ├── algorithm/     # 算法
 │   └── cpp/           # C++ 进阶特性实验
-├── config/            # 配置模板
-├── exp/               # 实验/扩展（预留）
-├── notes/             # 笔记（预留）
+├── config/            # 配置
+├── init_build.bat     # 项目初始化
+├── cancel_init.bat    # 取消初始化
 └── projects/          # 项目（预留）
 ```
+第一次使用一定要先点击`init_build`
+且需要MSVC环境
 
 ## API 文档
 
