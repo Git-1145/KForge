@@ -125,7 +125,16 @@ namespace KF
                                   + ": " + std::strerror(err);
                 KLOG_FATAL(KFIO_FILE_READ_FAIL, extra);
             }
-            return content;
+
+            // 后处理：过滤制表符（\t）
+            std::string filtered;
+            filtered.reserve(content.size());
+            for (std::size_t i = 0; i < content.size(); ++i)
+            {
+                if (content[i] != '\t')
+                    filtered += content[i];
+            }
+            return filtered;
         }
 
         }

@@ -84,7 +84,8 @@ int main()
         kout << Color::LightYellow << "  LightYellow"  << Color::Reset << std::endl;
         kout << Color::Orange      << "  Orange"       << Color::Reset << std::endl;
         kout << Color::SkyBlue     << "  SkyBlue (kout 默认)" << Color::Reset << std::endl;
-        kout << Color::Bold        << "  Bold"         << Color::Reset << std::endl;
+        kout << Color::Bold        << "  Bold"         << Color::Reset << std::endl << std::endl;
+        kout << doc["dbgKSON"]["escapes"]["color"].Str() << std::endl;
     }
 
     // ==================== 7. kin 链式输入 ====================

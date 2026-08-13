@@ -1,5 +1,6 @@
 *.exe
 *.obj
+.vscode/
 .trae/
 base/DEVLOG.md
 base/*.bat

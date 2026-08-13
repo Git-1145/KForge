@@ -11,7 +11,8 @@
             "cmdtitle": "KSON测试",
             "title": "dbgKSON 模块测试",
             "description": "KSON 解析模块全功能测试",
-            "author": "Git-1145"
+            "author": "Git-1145",
+            "date": "2026-08-13"
         },
 
         "intro":
@@ -83,9 +84,21 @@
             "quote": "say \"hi\"",
             "backslash": "path\\to\\file",
             "carriage_return": "line\r\n",
-            "backspace": "abc\b\b\bxyz"
+            "backspace": "abc\b\b\bxyz",
+            "color":"{red}红{/}
+            {green}绿{/}
+            {blue}蓝{/}
+            {yellow}黄{/}
+            {skyblue}天蓝{/}
+            {orange}橙{/}
+            {magenta}品红{/}
+            {cyan}青{/}
+            {lightyellow}亮黄{/}
+            {bold}加粗{/bold} {underline}下划线{/underline} {dim}暗淡{/dim}
+            混合: {red}{bold}粗红{/} 普通 {blue}{underline}蓝下划线{/}
+            未识别 tag 原样: {unknown}hello{/}
+            空花括号: {} hello"
         },
-
         "dup_key": "first",
         "dup_key": "second",
 
@@ -125,7 +138,8 @@
             "cmdtitle": "KBIGNUM测试",
             "title": "dbgKBIGNUM 模块测试",
             "description": "KBIGNUM 大数运算模块全功能测试",
-            "author": "Git-1145"
+            "author": "Git-1145",
+            "date": "2026-08-13"
         },
 
         "bignum":
@@ -163,7 +177,8 @@
             "cmdtitle": "CLI测试",
             "title": "CLI test",
             "description": "CLI test config",
-            "author": "Git-1145"
+            "author": "Git-1145",
+            "date": "2026-08-13"
         },
 
         "KOption":

@@ -1,0 +1,22 @@
+"Algorithm":
+{
+    "Sorting":
+    {
+        "BubbleSort":
+        {
+            "meta":
+            {
+                "cmdtitle": "冒泡排序",
+                "title": "Bubble Sort",
+                "description": "Bubble Sort is a {yellow}simple{skyblue} sorting algorithm that repeatedly steps through the list, \ncompares adjacent elements and swaps them if they are in the wrong order. \nThe pass through the list is repeated until the list is sorted.",
+                "author": "Git-1145",
+                "date": "2026-08-13"
+            },
+            "sort_method":
+            {
+                "name":"Choose the sorting RULE",
+                "options":["Ascending","Descending"]
+            }
+        }
+    }
+}

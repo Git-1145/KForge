@@ -1,4 +1,5 @@
 #include "base/KF.hpp"
+#include <unordered_map>
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
@@ -64,6 +65,28 @@ namespace KF
             SetConsoleTitleW(wtitle.c_str());
         }
 
+        /// @brief 计算含 ANSI 转义序列的字符串的可见显示宽度
+        /// @note  先剥离 \033[...m 颜色/样式码，再按 CJK=2/ASCII=1 计算，供框线对齐用
+        static size_t DisplayWidthNoAnsi(std::string_view s)
+        {
+            // 去 ANSI 序列
+            std::string clean;
+            clean.reserve(s.size());
+            for (size_t i = 0; i < s.size(); )
+            {
+                if (s[i] == '\033' && i + 1 < s.size() && s[i + 1] == '[')
+                {
+                    i += 2;
+                    while (i < s.size() && !(s[i] >= '0' && s[i] <= '?')) ++i; // 跳过参数
+                    if (i < s.size()) ++i; // 跳过结尾字母
+                    continue;
+                }
+                clean += s[i];
+                ++i;
+            }
+            return DisplayWidth(clean);
+        }
+
         /// @brief 从 kson 节点按键取字符串，不存在时返回空串
         static std::string GetStr(const kson& node, std::string_view key)
         {
@@ -73,52 +96,164 @@ namespace KF
         }
 
         /////////////////////////////////////////////////////////
+        // Kout 核心 tag 解析：{tag} → ANSI 颜色码
+        /////////////////////////////////////////////////////////
+        static const std::unordered_map<std::string_view, const char*>& TagMap()
+        {
+            static const std::unordered_map<std::string_view, const char*> m = {
+                // 前景色
+                {"red",          KLOGGER::Color::Red},
+                {"green",        KLOGGER::Color::Green},
+                {"blue",         KLOGGER::Color::Blue},
+                {"yellow",       KLOGGER::Color::Yellow},
+                {"skyblue",      KLOGGER::Color::SkyBlue},
+                {"orange",       KLOGGER::Color::Orange},
+                {"magenta",      KLOGGER::Color::Magenta},
+                {"cyan",         KLOGGER::Color::Cyan},
+                {"lightyellow",  KLOGGER::Color::LightYellow},
+                // 样式
+                {"bold",         "\033[1m"},
+                {"dim",          "\033[2m"},
+                {"underline",    "\033[4m"},
+                {"blink",        "\033[5m"},
+                // 关闭
+                {"/",            KLOGGER::Color::Reset},
+                {"/bold",        "\033[22m"},
+                {"/dim",         "\033[22m"},
+                {"/underline",   "\033[24m"},
+                {"/blink",       "\033[25m"},
+            };
+            return m;
+        }
+
+        std::string Kout::ParseTags(std::string_view str)
+        {
+            std::string out;
+            out.reserve(str.size());
+            auto& map = TagMap();
+            for (std::size_t i = 0; i < str.size(); ++i)
+            {
+                // 过滤真实制表符（来自 KSON ParseStr 或直接输入）
+                if (str[i] == '\t') continue;
+
+                // ---- 反斜杠转义：\n \r \b \t \" \\ ----
+                if (str[i] == '\\' && i + 1 < str.size())
+                {
+                    char esc = str[i + 1];
+                    switch (esc)
+                    {
+                        case 'n':  out += '\n'; ++i; continue;
+                        case 'r':  out += '\r'; ++i; continue;
+                        case 'b':  out += '\b'; ++i; continue;
+                        case 't':               ++i; continue; //制表符过滤
+                        case '"':  out += '"';  ++i; continue;
+                        case '\\': out += '\\'; ++i; continue;
+                        default: break; // 未知转义，走下面的原样保留
+                    }
+                }
+                // ---- {tag} 颜色/样式标签 ----
+                else if (str[i] == '{')
+                {
+                    std::size_t close = str.find('}', i);
+                    if (close != std::string::npos)
+                    {
+                        std::string_view tag(str.data() + i + 1, close - i - 1);
+                        if (!tag.empty() && tag.find(' ') == std::string::npos)
+                        {
+                            auto it = map.find(tag);
+                            if (it != map.end())
+                            {
+                                out += it->second;
+                                i = close;
+                                continue;
+                            }
+                        }
+                        out += '{';
+                    }
+                    else
+                    {
+                        out += str[i];
+                    }
+                    continue;
+                }
+                out += str[i];
+            }
+            return out;
+        }
+
+        /////////////////////////////////////////////////////////
         // CLI 功能函数实现
         /////////////////////////////////////////////////////////
         /// @brief KBegin 内部实现
-        /// @param args 参数数组，语义由个数决定：
-        ///   2 参: [title, desc]            -> 窗口标题=title, 框=title/desc/空
-        ///   3 参: [title, desc, author]    -> 窗口标题=title, 框=title/desc/author
-        ///   4 参: [cmdtitle, title, desc, author] -> 窗口标题=cmdtitle, 框=title/desc/author
-        void KBeginImpl(const std::vector<std::string>& args)
+        /// @param cmdtitle 窗口标题
+        /// @param title 标题
+        /// @param description 描述
+        /// @param author 作者（亮黄显示，带 "author: " 前缀）
+        /// @param date 日期（亮黄显示，带 "date: " 前缀）
+        void KBeginImpl(const std::string& cmdtitle, const std::string& title,
+                        const std::string& description, const std::string& author,
+                        const std::string& date)
         {
-            std::string cmdtitle, title, description, author;
-            if (args.size() >= 4)
-            {
-                cmdtitle    = args[0];
-                title       = args[1];
-                description = args[2];
-                author      = args[3];
-            }
-            else if (args.size() == 3)
-            {
-                cmdtitle = title = args[0];
-                description = args[1];
-                author      = args[2];
-            }
-            else // 2 参
-            {
-                cmdtitle = title = args[0];
-                description = args[1];
-            }
-
             // 启用 VT100 颜色 + UTF-8 输出
             EnableVT100();
             SetConsoleOutputCP(CP_UTF8);
             SetTitleUTF8(cmdtitle);
-            size_t w = DisplayWidth(title);
-            if (DisplayWidth(description) > w) w = DisplayWidth(description);
-            if (DisplayWidth(author) > w) w = DisplayWidth(author);
-            std::string bar(w + 4, '-');
-            auto line = [w](const std::string& content) {
-                size_t pad = w - DisplayWidth(content);
-                std::cout << "|  " << content << std::string(pad, ' ') << "  |\n";
+
+            // 将含 \n 的字段拆成多个物理行
+            auto splitLines = [](const std::string& s) {
+                std::vector<std::string> lines;
+                std::string cur;
+                for (char c : s)
+                {
+                    if (c == '\n') { lines.push_back(cur); cur.clear(); }
+                    else cur.push_back(c);
+                }
+                lines.push_back(cur);
+                return lines;
             };
+
+            // 构建显示内容行（先解析 {tag} 颜色标签，content 已含 ANSI 码）
+            struct LineInfo { std::string content; bool highlight; };
+            std::vector<LineInfo> lines;
+
+            // 标题
+            for (auto& l : splitLines(title))       lines.push_back({Kout::ParseTags(l), false});
+            // 空行
+            lines.push_back({"", false});
+            // 描述
+            for (auto& l : splitLines(description)) lines.push_back({Kout::ParseTags(l), false});
+            // 空行
+            lines.push_back({"", false});
+            // 作者
+            {
+                std::string authorLabel = "author: ";
+                std::string authorLine = authorLabel + (author.empty() ? KBEGIN_UNKNOWN : author);
+                lines.push_back({Kout::ParseTags(authorLine), true});
+            }
+            // 日期
+            {
+                std::string dateLabel = "date: ";
+                std::string dateLine = dateLabel + (date.empty() ? KBEGIN_UNKNOWN : date);
+                lines.push_back({Kout::ParseTags(dateLine), true});
+            }
+
+            // 取所有行中最大的可见宽度（剥离 ANSI 后计算，颜色码不计入对齐）
+            size_t w = 0;
+            for (auto& li : lines) { size_t dw = DisplayWidthNoAnsi(li.content); if (dw > w) w = dw; }
+
+            // 打印标题框（ASCII: + - |），每行按 w 补齐，右边界对齐
+            std::string bar(w + 4, '-');
             std::cout << Color::SkyBlue << "+" << bar << "+\n";
-            line(title);
-            line("");
-            line(description);
-            line(author);
+            for (auto& li : lines)
+            {
+                size_t pad = w - DisplayWidthNoAnsi(li.content);
+                std::cout << Color::SkyBlue << "|  ";
+                if (li.highlight)
+                    std::cout << Color::LightYellow << li.content << std::string(pad, ' ');
+                else
+                    std::cout << li.content << std::string(pad, ' ');
+                std::cout << Color::SkyBlue << "  |\n";
+            }
             std::cout << "+" << bar << "+" << Color::Reset << "\n";
             std::cout << std::endl;
         }
@@ -136,9 +271,8 @@ namespace KF
             std::string title       = get(FILE_TITLE);
             std::string description = get(FILE_DESC);
             std::string author      = get(FILE_AUTHOR);
-            // 窗口标题与框标题一致（保持原有行为）
-            std::vector<std::string> args{cmdtitle, title, description, author};
-            KBeginImpl(args);
+            std::string date        = get(FILE_DATE);
+            KBeginImpl(cmdtitle, title, description, author, date);
         }
         std::size_t KOptions(const kson& menu)
         {

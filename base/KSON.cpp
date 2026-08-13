@@ -168,6 +168,7 @@ namespace KF
             {
                 if(ReadPtr >= str.size()) return "";
                 bool IsEscape = false;//状态机 是否在转义模式
+                bool AtLineStart = false;//当前是否在行首（换行后跳过缩进空白）
                 size_t NumOfResize=0;
                 size_t WritePtr=0;
                 if(str[ReadPtr++] != CHAR_QUOTE1) KLOG_ERROR(KSON_PARSE_STRE,"");
@@ -183,7 +184,7 @@ namespace KF
                         char ec = str[ReadPtr++];
                         switch (ec)
                         {
-                            case 'n':  res[WritePtr++] = '\n'; break; //换行
+                            case 'n':  res[WritePtr++] = '\n'; AtLineStart = true; break; //换行
                             case 't':  res[WritePtr++] = '\t'; break; //制表符
                             case 'r':  res[WritePtr++] = '\r'; break; //回车
                             case 'b':  res[WritePtr++] = '\b'; break; //退格
@@ -210,6 +211,14 @@ namespace KF
                         res.resize(WritePtr);//去掉多余的容量
                         return res;
                     }
+                    // 行首缩进空白：跳过（跨行字符串的自动缩进不需要）
+                    if(AtLineStart && (str[ReadPtr] == ' ' || str[ReadPtr] == '\t'))
+                    {
+                        ReadPtr++;
+                        continue;
+                    }
+                    if(str[ReadPtr] == '\n') AtLineStart = true; //真实换行 → 下一行行首
+                    else                      AtLineStart = false;
                     res[WritePtr++] = str[ReadPtr++]; //普通字符照抄
                 }
                 // 循环结束仍未匹配到双引号

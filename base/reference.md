@@ -1,6 +1,6 @@
 # KForge API Reference
 
-> **最后更新**: 2026-08-10 | **标准**: C++17 | **编译器**: MSVC 19.44 (x64)
+> **最后更新**: 2026-08-13 | **标准**: C++17 | **编译器**: MSVC 19.44 (x64)
 > **头文件**: `base/KF.hpp`（唯一入口，`#include` 即可使用全部功能）
 ---
 
@@ -170,6 +170,15 @@ auto val = doc["test"]["main"]["Array_Test"][0];
 
 递归下降解析器：`ParseStr`(字符串,处理转义) `ParseNum`(整数/小数/科学计数法/大数,支持B后缀,自动转BigNum) `ParseVal`(分派) `ParseArr`(数组,支持尾随逗号) `ParseObj`(对象,支持尾随逗号/重复键后覆盖) `ParseImplicitObj`(隐式顶层对象)
 
+**跨行字符串缩进**：`ParseStr` 遇到换行后跳过行首的缩进空格/制表符，因此多行字符串的值不含行首缩进（源文件里保留缩进，读取时自动去除）。字符串开头的空格不受影响，显式 `\t` 转义保留。
+
+```cpp
+// cfg.kson 中：
+"color": "{red}红{/}
+          {green}绿{/}"
+// 解析后值为："{red}红{/}\n{green}绿{/}"（行首缩进已去除）
+```
+
 ### 自由函数
 
 ```cpp
@@ -191,6 +200,10 @@ std::string ReadFileRaw(std::string_view filepath);
 
 二进制模式读取文件全部内容。失败时 Fatal 并附带绝对路径 + errno。
 
+**读取后处理**：自动过滤所有制表符（`\t`），方便直接用于终端输出对齐。
+
+> **路径约定**：相对路径自动拼接项目根目录（向上查找 `base\KF.hpp` 定位）。kson 文件统一放根目录 `config/` 下。
+
 | 错误码 | 级别 | 说明 |
 |--------|------|------|
 | `KFIO_FILE_OPEN_FAIL` | Fatal | 文件打开失败 |
@@ -204,7 +217,7 @@ std::string ReadFileRaw(std::string_view filepath);
 
 ### Kout / Kin 链式 I/O
 
-`Kout` 每次 `<<` 自动套用默认颜色，遇 `endl`/`flush` 先输出 `Reset`。`Kin` 每个 `>>` 读一行并按类型转换，失败置 0 并 `KLOG_WARNING`。
+`Kout` 每次 `<<` 自动套用默认颜色，遇 `endl`/`flush` 先输出 `Reset`。对 `std::string` 和 `const char*` 自动解析颜色标签与转义序列。`Kin` 以 `kin >> a >> b >> c;` 为一组进行**整组输入与校验**：按空格/换行分隔读入等量值，自动按变量类型转换；任一非法或个数不符则丢弃整组、给出醒目提示并整组重试，直到全部合法。不同类型严格校验：整数必须为纯整数（带小数点如 `3.14` 判非法），`bool` 支持 `true/false/yes/1/0` 等（大小写不敏感）。
 
 | 全局对象 | 默认颜色 | 用途 |
 |----------|----------|------|
@@ -217,17 +230,51 @@ std::string ReadFileRaw(std::string_view filepath);
 ```cpp
 kout  << "普通信息" << 42 << std::endl;       // 天蓝色
 koutE << Color::Red << "临时换色" << std::endl; // 临时红色
-int age; string name; kin >> age >> name;       // 每次读一行
+int age; string name; kin >> age >> name;       // 整组输入，空格/换行分隔，任一非法则整组重试
 ```
+
+#### 颜色标签 `{tag}`
+
+`kout` 输出字符串时自动解析 `{}` 内的颜色/样式标签，未识别标签原样保留：
+
+| 分类 | 标签 |
+|------|------|
+| 前景色 | `{red}` `{green}` `{blue}` `{yellow}` `{skyblue}` `{orange}` `{magenta}` `{cyan}` `{lightyellow}` |
+| 样式 | `{bold}` `{dim}` `{underline}` `{blink}` |
+| 重置 | `{/}` 全部重置 · `{/bold}` `{/underline}` `{/dim}` `{/blink}` 关闭单个 |
+
+```cpp
+kout << "{red}红字{/} 普通 {bold}{blue}粗蓝字{/}" << std::endl;
+koutW << "{bold}{yellow}警告{/} 信息" << std::endl;   // 叠加样式
+```
+
+标签可嵌套叠加，`{red}{bold}粗红{/}` 输出后 `{/}` 一次全部重置。
+
+#### 转义序列
+
+`kout` 同时解析以下反斜杠转义（未知转义如 `\x` 原样保留）：
+
+| 转义 | 含义 | 转义 | 含义 |
+|------|------|------|------|
+| `\n` | 换行 | `\t` | 制表符（被过滤） |
+| `\r` | 回车 | `\"` | 双引号 |
+| `\b` | 退格 | `\\` | 反斜杠 |
+
+> **制表符统一过滤**：真实制表符被过滤，因此从文件读取的多行文本在终端不会出现缩进。
 
 ### CLI 功能函数
 
 | 函数 | 说明 |
 |------|------|
-| `KBegin(title, description="")` | 初始化 CLI：启用 VT100、UTF-8、设置标题、打印标题框。直接传字符串，无需 kson |
-| `KOptions(kson menu)` | 显示选项菜单，返回选中索引(0-based)。入参 `"title"`/`"options":[...]` |
+| `KBegin(title, desc)` | 初始化 CLI：启用 VT100、UTF-8、设置标题、打印标题框（2 参） |
+| `KBegin(title, desc, author)` | 同上，作者以亮黄显示（3 参） |
+| `KBegin(title, desc, author, date)` | 同上，作者与日期（日期）亮黄显示（4 参） |
+| `KBegin(kson file)` | 从 KSON 文件读取 `meta` 字段（含 `author`/`date`）初始化 |
+| `KOptions(kson menu)` | 显示选项菜单，返回选中索引(0-based)。入参 `"name"`/`"options":[...]` |
 | `kpause()` | 显示"按任意键继续..."并等待 |
 | `KEnd()` | `kpause()` + `exit(0)` |
+
+> **缺键兜底**：`KBegin(kson)` 读取 `meta` 时若 `cmdtitle`/`title`/`description`/`author`/`date` 缺失，自动用 `KBEGIN_UNKNOWN`（`"Unknown"`）补充，不报错。
 
 ---
 
@@ -310,7 +357,7 @@ std::string ToStr() const;                     // BigNum → 字符串
 | 绝对值运算 | `AbsMul` `AbsDiv` `AbsMod` `AbsPow` | 待实现 |
 | 用户运算符 | `operator+ - * / %` `Pow` | 待实现 |
 | 比较运算符 | `operator<` | 已实现（使用 `AbsCmp`） |
-| 比较运算符 | `operator== != <= > >=` | 待实现 |
+| 比较运算符 | `operator== != <= > >=` | 已实现 |
 | 输出 | `friend operator<<` | 调用 `ToStr` |
 
 > **设计约定**：自由函数（`AbsCmp` 等）声明放在 `BigNum` 类定义之前，需前向声明 `class BigNum;`。类内调用时省略 `KBIGNUM::` 前缀。`AbsAdd` 中使用 `(std::max)` 避免 Windows max 宏冲突。
@@ -327,7 +374,7 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 
 ## KSON 数据格式
 
-类 JSON 自定义格式，支持：双引号字符串、整数(`long long`)、小数(`double`)、大数(`BigNum`)、布尔、`null`、数组、对象、`#`行注释、尾随逗号、隐式顶层对象（无需外层`{}`）、转义字符(`\n \t \r \b \" \\`)、重复键后覆盖前。
+类 JSON 自定义格式，支持：双引号字符串、整数(`long long`)、小数(`double`)、大数(`BigNum`)、布尔、`null`、数组、对象、`#`行注释、尾随逗号、隐式顶层对象（无需外层`{}`）、转义字符(`\n \t \r \b \" \\`)、重复键后覆盖前、跨行字符串（自动去除行首缩进）。
 
 **大数支持**：
 - 科学计数法（如 `1.23e50`）自动解析为 `BigNum`
@@ -337,12 +384,60 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 
 精度限制：整数超出 `long long` 触发 `KSON_PARSE_NUMOR`，科学计数法指数过大触发 `KSON_PARSE_BIG_EXP`。
 
+### KSON 文件实例
+
+以 `config/test/cfg.kson` 为例，每个模块一个对象，均含 `meta`（供 `KBegin` 使用）：
+
+```kson
+# KSON 全功能测试配置文件
+dbgKSON:
+{
+    "meta": { "cmdtitle": "dbgKSON", "title": "KSON 模块测试",
+              "description": "KSON 解析模块全功能测试",
+              "author": "Git-1145", "date": "2026-08-13" },
+
+    "intro": { "integer": 42, "decimal": 3.14, "flag": true, "nothing": null },
+
+    "types":
+    {
+        "int_value": 42,
+        "dec_value": 3.14,
+        "str_value": "hello world",
+        "bool_true": true,
+        "bool_false": false,
+        "null_value": null,
+        "int_array": [1, 2, 3, 4, 5,],
+    },
+
+    "escapes":
+    {
+        "newline": "line1\nline2",
+        "tab": "col1\tcol2",
+        "quote": "say \"hi\"",
+        "backslash": "path\\to\\file",
+        "color": "{red}红{/}
+                  {green}绿{/}
+                  {blue}蓝{/}",
+    },
+
+    "kson_bignum":
+    {
+        "int64_max": 9223372036854775807,
+        "overflow_big": 9223372036854775808,      # 自动转 BigNum
+        "sci_big": 1.23e50,                       # 科学计数法 → BigNum
+        "big_suffix": 123456789B,                 # B 后缀强制 BigNum
+    },
+}
 ```
-# 应用配置
-"app_name": "MyApp",
-"version": 1.0,
-"settings": { "debug": true, "tags": ["prod", "v2",] },
-"empty": []
+
+访问示例：
+
+```cpp
+kson doc  = ReadKsonFile("config/test/cfg.kson");
+kson meta = doc["dbgKSON"]["meta"];
+KBegin(meta);                                   // 用 meta 初始化标题框
+auto color = doc["dbgKSON"]["escapes"]["color"].Str();
+kout << color << std::endl;                     // 输出带颜色标签的多行文本
 ```
 
 ---
@@ -371,7 +466,7 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 
 每个脚本自包含，直接调用 `cl.exe` + `link.exe`，不依赖 CMake：
 
-- **build.bat**：显示文件列表，输入编号选择（如 `1,3`），Enter 编译全部。每次运行前清空 `Release/`
+- **build.bat**：显示文件列表，输入编号选择（如 `1 3`），Enter 编译全部。每次运行前保留 `Release/`
 - **fast_build.bat**：自动编译全部文件，每次运行前清空 `Release/`
 - 编译产物（exe）输出到同目录的 `Release/` 文件夹
 
@@ -392,7 +487,7 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 ├── base/                  # 基础库源码
 ├── test/                  # 测试程序
 └── study/                 # 学习示例
-
+```
 ---
 
 ## 错误码速查表
@@ -448,19 +543,52 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 
 ## 快速上手
 
+### 最小程序
+
+```cpp
+#include "base/KF.hpp"
+using namespace KCLI;
+using namespace KTIMER;
+
+int main()
+{
+    KBegin("示例程序", "KForge 快速上手", "Git-1145", "2026-08-13");
+    KEnd();
+}
+```
+
+### 综合示例：KSON + KCLI + KFIO + KTIMER
+
 ```cpp
 #include "base/KF.hpp"
 using namespace KSON;
 using namespace KCLI;
+using namespace KFIO;
+using namespace KTIMER;
 
-int main() {
-    kson file = ReadKsonFile("config/config.kson");
-    kson main = file["test"]
-    KBegin(main);
-    auto arr = doc["tags"];
-    for (size_t i = 0; i < arr.size(); i++)
-        kout << "  [" << i << "] " << arr[i].Auto() << std::endl;
-    size_t choice = KOptions(main["settings"]);
+int main()
+{
+    // KSON：读取配置文件（含 meta）
+    kson doc = ReadKsonFile("config/test/cfg.kson");
+    KBegin(doc["dbgKSON"]["meta"]);               // 用 meta 初始化标题框
+
+    // KCLI：彩色输出 + 颜色标签
+    kout << "{red}错误{/} {green}成功{/} {bold}{blue}高亮{/}" << std::endl;
+    koutE << Color::Orange << "警告消息" << std::endl;
+
+    // KFIO：读取文件（自动过滤制表符）
+    std::string raw = ReadFileRaw("config/test/cfg.kson");
+    kout << "文件长度: " << raw.size() << std::endl;
+
+    // KTIMER：计时
+    AddTimer("work", TimeUnit::ms);
+    for (volatile size_t i = 0; i < 100000000; i++) {}  // 模拟工作
+    kout << "耗时: " << GetTimer("work") << " ms" << std::endl;
+
+    // KCLI：菜单（dbgKCLI 的 KOption 含 name/options）
+    size_t choice = KOptions(doc["dbgKCLI"]["KOption"]);
+    kout << "你选择了: " << choice + 1 << std::endl;
+
     KEnd();
 }
 ```
@@ -472,7 +600,7 @@ int main() {
 | `dbgKSON.cpp` | KSON | 解析、类型判断、取值、路径访问、find/at、Auto、转义、注释、尾随逗号、重复键、BigNum/科学计数法 |
 | `dbgKFIO.cpp` | KFIO | ReadFileRaw 读取/验证、Fatal 测试 |
 | `dbgKLOGGER.cpp` | KLOGGER | KLOG_* 宏、错误码、MakeCode、Table、枚举、Color |
-| `dbgKCLI.cpp` | KCLI | kout/koutW/koutE/koutF 输出、kin 输入、KOptions 菜单 |
+| `dbgKCLI.cpp` | KCLI | kout/koutW/koutE/koutF 输出、颜色标签、kin 输入、KOptions 菜单 |
 | `dbgKTIMER.cpp` | KTIMER | AddTimer/PauseTimer/StartTimer/DeleteTimer/GetTimer/Print* |
 | `dbgKBIGNUM.cpp` | KBIGNUM | Normalize、ToBig+ToStr 往返、limbs/scale/isneg 验证、边界值 |
 

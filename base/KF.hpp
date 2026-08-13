@@ -1,5 +1,6 @@
 #pragma once
 #include<vector>
+#include<algorithm>
 #include<cmath>
 #include<string>
 #include<random>
@@ -19,6 +20,7 @@
 #include<variant>
 #include<cstring>
 #include<type_traits>
+#include<cctype>
 using Code = uint32_t;
 /**
  * @file KF.hpp
@@ -54,6 +56,7 @@ namespace KF
     constexpr const char* FILE_TITLE = "title";
     constexpr const char* FILE_DESC = "description";
     constexpr const char* FILE_AUTHOR = "author";
+    constexpr const char* FILE_DATE = "date";
     constexpr const char* FILE_OPTION = "options";
     constexpr const char* FILE_OPTNAME = "name";
     constexpr const char* KBEGIN_UNKNOWN = "Unknown"; // KBegin 读取配置缺键时的默认补充值
@@ -225,7 +228,7 @@ namespace KF
                 /// @brief 比较 (由于这是c++ 17 所以不使用三目运算符)
                 bool operator==(const BigNum& b) const{return !(*this < b) && !(b < *this);}
                 bool operator!=(const BigNum& b) const{return (*this < b) || (b < *this);}
-                bool operator<(const BigNum& b) const {if(isneg && !b.isneg) return true; else if(!isneg && b.isneg) return false; else return AbsCmp(*this,b) < 0; }
+                bool operator<(const BigNum& b) const {if(isneg && !b.isneg) return true; else if(!isneg && b.isneg) return false; else return AbsCmp(*this,b) == (isneg ? 1 : -1); }
                 bool operator<=(const BigNum& b) const {return (*this < b) || (*this == b);}
                 bool operator>(const BigNum& b) const {return !(*this <= b);}
                 bool operator>=(const BigNum& b) const{return !(*this < b);}
@@ -235,6 +238,15 @@ namespace KF
                 {
                     os << b.ToStr();
                     return os;
+                }
+
+                /// @brief 通过cin构造 BigNum（按空白分隔读取单个数，可用空格/换行隔开多个）
+                friend std::istream& operator>>(std::istream& is, BigNum& b)
+                {
+                    std::string token;
+                    if (!(is >> token)) return is;
+                    b = BigNum(token);
+                    return is;
                 }
         };
         std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0
@@ -399,12 +411,14 @@ namespace KF
         /// @brief 链式输出流，自带默认颜色
         /// @details 每次 << 自动套用默认色；遇到 std::endl 等 manipulator 时
         ///          先输出 Color::Reset 再输出 manipulator，防止颜色泄漏。
-        ///          如需临时换色：koutE << Color::Red << "严重" << std::endl;
+        ///          支持在字符串中使用 {tag} 格式的颜色标签：
+        ///          {red} {green} {blue} {yellow} {skyblue} {orange} {magenta} {cyan} {lightyellow}
+        ///          {bold} {dim} {underline} {blink}
+        ///          {bg_red} {bg_blue} ...
+        ///          {/} 重置所有, {/bold} 重置单个
         /// @code
-        /// kout  << "普通信息" << 42 << std::endl;  // 天蓝色
-        /// koutW << "警告信息" << std::endl;         // 淡黄色
-        /// koutE << "错误信息" << std::endl;         // 橙色
-        /// koutF << "致命信息" << std::endl;         // 红色
+        /// kout  << "{red}红字{/} 普通信息" << std::endl;
+        /// koutW << "{bold}{yellow}警告{/} 信息" << std::endl;
         /// @endcode
         class Kout
         {
@@ -412,10 +426,27 @@ namespace KF
         public:
             explicit constexpr Kout(const char* c) noexcept : color_(c) {}
 
+            // 核心 tag 解析：扫描字符串，替换 {tag} 为 ANSI 码
+            static std::string ParseTags(std::string_view str);
+
             template<typename T>
             Kout& operator<<(const T& val)
             {
                 std::cout << color_ << val;
+                return *this;
+            }
+
+            // 针对 std::string 特化，自动解析 {tag}
+            Kout& operator<<(const std::string& val)
+            {
+                std::cout << color_ << ParseTags(val);
+                return *this;
+            }
+
+            // 针对 const char* 特化
+            Kout& operator<<(const char* val)
+            {
+                std::cout << color_ << ParseTags(std::string_view(val));
                 return *this;
             }
 
@@ -427,32 +458,117 @@ namespace KF
             }
         };
 
-        /// @brief 链式输入流，operator>> 根据目标变量类型自动推导
-        /// @code int x; double y; std::string s; kin >> x >> y >> s; @endcode
-        /// @note  每个 >> 读取一行（getline），按目标类型转换，转换失败置 0 并告警
+        /// @brief 链式输入会话：\c kin >> a >> b >> c 读入一组（空格/换行分隔）值，
+        ///        自动按变量类型转换；任一非法则丢弃整组、给出醒目提示并整组重新输入，直到全部合法。
+        /// @note  以分号结尾的每条 \c kin >> ... 语句为一组，值的个数须与变量个数一致。
+        class KinSession
+        {
+            std::vector<std::function<bool(const std::string&)>> setters_;
+        public:
+            KinSession() = default;
+            KinSession(const KinSession&) = delete;
+            KinSession(KinSession&&) = default;
+            KinSession& operator=(const KinSession&) = delete;
+            KinSession& operator=(KinSession&&) = default;
+            ~KinSession() { commit(); }
+
+            /// 收集一个变量及其按类型生成的解析器
+            template<typename T>
+            KinSession&& operator>>(T& val)
+            {
+                setters_.push_back(makeSetter(val));
+                return std::move(*this);
+            }
+
+        private:
+            /// 为不同类型的变量生成「token -> bool(是否合法)」的解析器
+            template<typename T>
+            static std::function<bool(const std::string&)> makeSetter(T& val)
+            {
+                if constexpr (std::is_same_v<T, ::KF::KBIGNUM::BigNum>)
+                {
+                    return [&val](const std::string& t) -> bool {
+                        try { val = ::KF::KBIGNUM::BigNum(t); return true; }
+                        catch (...) { return false; }
+                    };
+                }
+                else if constexpr (std::is_same_v<T, std::string>)
+                {
+                    return [&val](const std::string& t) -> bool { val = t; return true; };
+                }
+                else if constexpr (std::is_same_v<T, bool>)
+                {
+                    // 大小写不敏感；支持常见真/假写法
+                    return [&val](const std::string& t) -> bool {
+                        std::string low = t;
+                        for (auto& c : low) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                        if      (low == "1" || low == "true" || low == "yes" || low == "y" || low == "on") { val = true;  return true; }
+                        else if (low == "0" || low == "false" || low == "no" || low == "n" || low == "off") { val = false; return true; }
+                        return false;
+                    };
+                }
+                else if constexpr (std::is_integral_v<T>)
+                {
+                    // 严格整数：必须整个 token 都是整数，带小数点等视为非法
+                    return [&val](const std::string& t) -> bool {
+                        try {
+                            std::size_t idx = 0;
+                            const long long v = std::stoll(t, &idx);
+                            if (idx != t.size()) return false; // 如 "3.14" 解析到 '.' 即停，判非法
+                            val = static_cast<T>(v);
+                            return true;
+                        }
+                        catch (...) { return false; }
+                    };
+                }
+                else if constexpr (std::is_floating_point_v<T>)
+                {
+                    return [&val](const std::string& t) -> bool {
+                        try { val = static_cast<T>(std::stod(t)); return true; }
+                        catch (...) { return false; }
+                    };
+                }
+                else
+                {
+                    return [&val](const std::string&) -> bool { return false; };
+                }
+            }
+
+            /// 整组读取：读够 N 个 token，全部合法才提交；否则醒目提示并整组重试
+            void commit()
+            {
+                const std::size_t n = setters_.size();
+                while (true)
+                {
+                    std::vector<std::string> tokens;
+                    tokens.reserve(n);
+                    while (tokens.size() < n)
+                    {
+                        std::string t;
+                        if (!(std::cin >> t)) return; // EOF：放弃本次输入
+                        tokens.push_back(t);
+                    }
+                    bool allok = true;
+                    for (std::size_t i = 0; i < n; ++i)
+                        if (!setters_[i](tokens[i])) { allok = false; break; }
+                    if (allok) return;
+                    // 醒目提示，整组重新输入
+                    Kout(Color::Orange) << "\n输入不合法，请重新输入整组（以空格分隔，共 " << n << " 个值）：" << std::endl;
+                }
+            }
+        };
+
+        /// @brief 链式输入流，\c kin >> a >> b >> c 自动按变量类型读取并整组校验
+        /// @code int x; bool b; kin >> x >> b; @endcode
         class Kin
         {
         public:
             template<typename T>
-            Kin& operator>>(T& val)
+            KinSession operator>>(T& val)
             {
-                std::string line;
-                std::getline(std::cin, line);
-                if constexpr (std::is_same_v<T, std::string>)
-                    val = line;
-                else if constexpr (std::is_same_v<T, bool>)
-                    val = (line == "1" || line == "true" || line == "yes");
-                else if constexpr (std::is_integral_v<T>)
-                {
-                    try { val = static_cast<T>(std::stoll(line)); }
-                    catch (const std::exception&) { val = 0; KLOG_WARNING(::KF::KLOGGER::KCLI_INPUT_INVALID, line); }
-                }
-                else if constexpr (std::is_floating_point_v<T>)
-                {
-                    try { val = static_cast<T>(std::stod(line)); }
-                    catch (const std::exception&) { val = 0; KLOG_WARNING(::KF::KLOGGER::KCLI_INPUT_INVALID, line); }
-                }
-                return *this;
+                KinSession s;
+                s >> val;
+                return std::move(s);
             }
         };
 
@@ -471,17 +587,25 @@ namespace KF
         /// 字符串版本（可变参数，定义见下方模板）：
         ///   KBegin(title, desc)                  // 2 参
         ///   KBegin(title, desc, author)          // 3 参
-        ///   KBegin(cmdtitle, title, desc, author)// 4 参（cmdtitle 仅作窗口标题）
-        /// @param a 首参（2/3 参时为标题，4 参时为窗口标题）
-        /// @param b 次参（2/3 参时为描述，4 参时为框标题）
-        /// @param rest 剩余参数
-        void KBeginImpl(const std::vector<std::string>& args);// 内部实现：args[0]=窗口标题，其余为框内容
+        ///   KBegin(title, desc, author, date)    // 4 参
+        /// @param title 标题（留空则不打印标题框）
+        /// @param description 描述（留空则不打印描述）
+        /// @param author 作者（亮黄显示）
+        /// @param date 日期（亮黄显示）
+        void KBeginImpl(const std::string& cmdtitle, const std::string& title,
+                        const std::string& description, const std::string& author,
+                        const std::string& date);
 
         template<typename... Args>
         void KBegin(const std::string& a, const std::string& b, Args... rest)
         {
             std::vector<std::string> args{a, b, rest...};
-            KBeginImpl(args);
+            // 语义: [title, desc] / [title, desc, author] / [title, desc, author, date]
+            std::string title = a;
+            std::string description = b;
+            std::string author = args.size() >= 3 ? args[2] : "";
+            std::string date   = args.size() >= 4 ? args[3] : "";
+            KBeginImpl(title, title, description, author, date);
         }
 
         void KBegin(const KSON::kson file);//从文件中读取
