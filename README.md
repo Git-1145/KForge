@@ -11,7 +11,8 @@ KForge 是一个个人 C++ 学习项目，作为算法与 C++ 特性学习的实
 kForge/
 ├── base/              # 核心基础库
 │   ├── KF.hpp         # 模块声明与公共接口
-│   ├── FIO.cpp        # 自定义配置格式(json like)
+│   ├── KFIO.cpp       # 文件读取
+│   ├── KSON.cpp       # 自定义配置格式(json like)
 │   ├── CLI.cpp        # 控制台交互
 │   ├── KTIMER.cpp     # 计时器
 │   ├── UTILITY.cpp    # 通用工具函数
