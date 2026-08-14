@@ -312,8 +312,78 @@ base = 10⁹，每个 `limb`（`uint32_t`）存储 9 位十进制数字。选择
 | `limbs` | `vector<limb>` | 低位在前，`limbs[0]` 是最低 9 位 |
 | `isneg` | `bool` | 负数标志 |
 | `scale` | `size_t` | 小数位数 |
+| `state` | `State` | 特殊状态：`Normal` / `Inf` / `NegInf` / `Nan` |
 
 类型别名：`using limb = uint32_t; using dlimb = uint64_t;`
+
+### 特殊状态（inf / -inf / nan）
+
+遵循 IEEE-754 语义，用于表示无穷大和非数：
+
+| 状态 | 枚举值 | 说明 |
+|------|--------|------|
+| `Normal` | `State::Normal` | 普通数值（默认） |
+| `Inf` | `State::Inf` | 正无穷大 (`+inf`) |
+| `NegInf` | `State::NegInf` | 负无穷大 (`-inf`) |
+| `Nan` | `State::Nan` | 非数 (`nan`) |
+
+**辅助方法**：
+
+- `IsInf()` — 判断是否为 ±inf
+- `IsNan()` — 判断是否为 nan
+- `IsNormal()` — 判断是否为普通数值
+
+**构造**：
+
+| 输入 | 结果 |
+|------|------|
+| `"inf"` / `"+inf"` / `"Inf"` / `"INF"` | `State::Inf` |
+| `"-inf"` / `"-INF"` | `State::NegInf` |
+| `"nan"` / `"NaN"` / `"NAN"` | `State::Nan` |
+| `BigNum(BigNum::State::Inf)` | `State::Inf` |
+| `BigNum(BigNum::State::NegInf)` | `State::NegInf` |
+| `BigNum(BigNum::State::Nan)` | `State::Nan` |
+
+字符串构造时大小写不敏感，容忍首尾空白（如 `"  -inf  "` → `NegInf`）。
+
+**比较规则**（IEEE-754）：
+- NaN 与任何值（包括自身）比较均返回 `false`（`==` 和 `<` 均返回 `false`，`!=` 返回 `true`）
+- `-inf < 一切普通数值 < +inf`
+- `inf == inf`，`-inf == -inf`，其余特殊状态间不等
+
+**算术传播规则**：
+
+| 运算 | 规则 |
+|------|------|
+| `+` | 任一 NaN → NaN；`inf + (-inf)` → NaN；其余取无穷 |
+| `-` | 任一 NaN → NaN；`inf - inf` → NaN；其余按 `a + (-b)` 处理 |
+| `*` | 任一 NaN → NaN；`inf × 0` → NaN；`±inf × ±非零` → ±inf |
+| `/` | 任一 NaN → NaN；`inf / inf` → NaN；`±inf / 有限` → ±inf；`有限 / ±inf` → 0；`非零/0` → 报错 ±inf；`0/0` → 报错 NaN |
+| `%` | NaN/±inf 参与取模 → NaN；除零先报错再返回 NaN；余数符号跟随被除数 |
+| 除零 | 报 `KBIGNUM_DIVBYZERO` 错误，`0/0` → NaN，`非零/0` → ±inf |
+| `Pow` | 见下方「幂运算规则」 |
+
+### 幂运算规则
+
+`Pow(a, b)` 为自由函数（不在类内），`a^b`，按 IEEE-754 惯例处理特殊状态：
+
+| 条件 | 结果 |
+|------|------|
+| `a` 或 `b` 为 `nan` | `|a| == 1` → `1`，否则 → `nan` |
+| `a` 为 `±inf`，`b == 0` | `1` |
+| `a` 为 `±inf`，`b` 为 `±inf` | `+inf` 指数 → `inf`；`-inf` 指数 → `0` |
+| `a` 为 `±inf`，`b < 0` | `0` |
+| `+inf` 且 `b > 0` | `inf` |
+| `-inf` 且 `b > 0` 整数 | 奇数次 → `-inf`，偶数次 → `+inf` |
+| `-inf` 且 `b > 0` 非整数 | `nan` |
+| `b` 为 `±inf`，底数有限 | `|a| == 1` → `1`；`a^+inf`：`|a|>1` → `inf`、`|a|<1` → `0`；`a^-inf` 相反 |
+| `a == 0`，`b == 0` | `1` |
+| `a == 0`，`b < 0` | `inf` |
+| `a == 0`，`b > 0` | `0` |
+| `a < 0` 且 `b` 非整数 | `nan`（实数域无意义） |
+| `b < 0`（其余） | `1 / a^|b|`（保留 9 位小数） |
+| `b` 为整数（其余） | 二进制快速幂，精确 |
+| `b` 为分数（其余） | `double` 近似，四舍五入到 9 位小数 |
 
 ### Normalize 字符串合法化
 
@@ -346,19 +416,23 @@ std::string ToStr() const;                     // BigNum → 字符串
 | 构造 | 说明 |
 |------|------|
 | `BigNum()` | 默认构造，零值 |
-| `BigNum(const string& str)` | 字符串构造（Normalize → ToBig） |
+| `BigNum(const string& str)` | 字符串构造（inf/-inf/nan 大小写不敏感；否则 Normalize → ToBig） |
 | `BigNum(const dlimb& num)` | 数字构造（to_string → ToBig） |
+| `BigNum(State s)` | 特殊状态构造（`State::Inf` / `NegInf` / `Nan`） |
 
 ### 运算接口
 
 | 分类 | 函数 | 状态 |
 |------|------|------|
 | 绝对值运算 | `AbsAdd` `AbsSub` `AbsCmp` | 已实现 |
-| 绝对值运算 | `AbsMul` `AbsDiv` `AbsMod` `AbsPow` | 待实现 |
-| 用户运算符 | `operator+ - * / %` `Pow` | 待实现 |
-| 比较运算符 | `operator<` | 已实现（使用 `AbsCmp`） |
-| 比较运算符 | `operator== != <= > >=` | 已实现 |
-| 输出 | `friend operator<<` | 调用 `ToStr` |
+| 绝对值运算 | `AbsMul` `AbsDiv` | 已实现（`AbsDiv` 自动检测：a、b 均为整数且能整除 → 整数，否则保留 9 位小数） |
+| 绝对值运算 | `AbsMod` | 已实现（对齐小数位后做整数取余，余数非负） |
+| 用户运算符 | `operator+ - * / %` | 已实现（含 inf/nan 状态传播） |
+| 用户运算符 | `Pow` | 已实现（整数指数快速幂，负指数 a^{-n}=1/a^n，分数指数 double 近似，inf/nan 规则） |
+| 比较运算符 | `operator< == != <= > >=` | 已实现（IEEE-754：NaN 参与比较恒为 false） |
+| 输出 | `friend operator<<` | 调用 `ToStr`（inf → `"inf"`，nan → `"nan"`） |
+
+**除法精度**：`AbsDivSchool` 保留 `keep` 位小数（默认 9），逐块（每块 9 位）二分试商，在 `[0, BASE-1]` 内二分查找最大商 d 使 `d*B <= 当前余数`，与手算长除法一致。
 
 > **设计约定**：自由函数（`AbsCmp` 等）声明放在 `BigNum` 类定义之前，需前向声明 `class BigNum;`。类内调用时省略 `KBIGNUM::` 前缀。`AbsAdd` 中使用 `(std::max)` 避免 Windows max 宏冲突。
 
@@ -380,7 +454,9 @@ kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
 - 科学计数法（如 `1.23e50`）自动解析为 `BigNum`
 - 数字后加 `B` 后缀（如 `123456789B`）强制存储为 `BigNum`
 - 整数超出 `long long` 范围（`9223372036854775807`）自动转为 `BigNum`
-- 通过 `Big()` 方法获取 `BigNum` 引用
+- 关键字 `inf` / `-inf` / `nan`（大小写不敏感，如 `Inf` `NAN`）解析为 `BigNum` 特殊状态
+- 引号字符串 `"inf"` `"-inf"` `"nan"`（大小写不敏感）同样自动转为 `BigNum` 特殊状态
+- 通过 `Big()` 方法获取 `BigNum` 引用；`Auto()` 可统一转字符串（含特殊状态）
 
 精度限制：整数超出 `long long` 触发 `KSON_PARSE_NUMOR`，科学计数法指数过大触发 `KSON_PARSE_BIG_EXP`。
 
@@ -537,6 +613,7 @@ kout << color << std::endl;                     // 输出带颜色标签的多�
 | `KCLI_INPUT_INVALID` | `0x05201001` | Warning | 输入解析失败 |
 | `KBIGNUM_MULPOINT` | `0x02201002` | Warning | 多余的小数点 |
 | `KBIGNUM_INVALIDCHAR` | `0x02201004` | Warning | 数字中含非法字符 |
+| `KBIGNUM_DIVBYZERO` | `0x02302003` | Error | 除零：结果为 ±inf（0/0 为 nan） |
 | `UNKNOWN` | `0x00400000` | Fatal | 未知错误码 |
 
 ---
@@ -602,7 +679,7 @@ int main()
 | `dbgKLOGGER.cpp` | KLOGGER | KLOG_* 宏、错误码、MakeCode、Table、枚举、Color |
 | `dbgKCLI.cpp` | KCLI | kout/koutW/koutE/koutF 输出、颜色标签、kin 输入、KOptions 菜单 |
 | `dbgKTIMER.cpp` | KTIMER | AddTimer/PauseTimer/StartTimer/DeleteTimer/GetTimer/Print* |
-| `dbgKBIGNUM.cpp` | KBIGNUM | Normalize、ToBig+ToStr 往返、limbs/scale/isneg 验证、边界值 |
+| `dbgKBIGNUM.cpp` | KBIGNUM | Normalize、ToBig+ToStr 往返、limbs/scale/isneg 验证、边界值、inf/nan 特殊状态（配置驱动） |
 
 > Fatal 级别测试放在文件最后执行，触发后终止程序。所有测试脚本使用 `SECTION`/`CHECK`/`SHOW` 宏，配合 `kout`/`koutW`/`koutE`/`koutF` 彩色输出。
 

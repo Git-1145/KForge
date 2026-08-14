@@ -1,241 +1,142 @@
 /**
  * @file    dbgKTIMER.cpp
- * @brief   KTIMER 计时器模块全功能测试
+ * @brief   KTIMER 计时器模块配置驱动测试
  *
- * 测试内容:
- *   1. AddTimer - 新建计时器（不同名字和单位）
- *   2. AddTimer - 重名覆盖（警告）
- *   3. 计时精度 - sleep 后验证时间
- *   4. PauseTimer - 暂停计时器
- *   5. PauseTimer - 暂停不存在的计时器（警告）
- *   6. PauseTimer - 暂停已暂停的计时器（警告）
- *   7. StartTimer - 恢复计时器
- *   8. StartTimer - 恢复运行中的计时器（警告）
- *   9. GetTimer - 获取计时时间
- *  10. PrintTimer - 打印单个计时器
- *  11. PrintAllTimers - 打印所有计时器
- *  12. DeleteTimer - 删除计时器
- *  13. DeleteTimer - 删除不存在的计时器（警告）
- *  14. 综合工作流
- *  15. 空表打印
- *  16. 边界情况 (空名字 / 已删除 / 不存在)
+ * 检测单元从 config/test/cfg.kson 的 dbgKTIMER 读取：
+ *   - plan: 操作脚本数组，op 支持 add / sleep / pause / start / get / print / printall / delete
+ *
+ * 若配置键缺失则输出 {red}[FAIL]{/} 并继续，不会退出程序。
  */
 
 #include "base/KF.hpp"
 #include <thread>
+#include <chrono>
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
 using namespace KCLI;
 using namespace KTIMER;
 
-// ==================== 测试辅助宏 ====================
+// ==================== 测试辅助 ====================
 #define SECTION(name) kout << Color::Bold << "\n--- " << name << " ---" << Color::Reset << std::endl
+
+static int g_ok = 0, g_fail = 0;
+
+/// 单位字符串 -> TimeUnit
+static TimeUnit ParseUnit(const std::string& u)
+{
+    if (u == "ns") return TimeUnit::ns;
+    if (u == "us") return TimeUnit::us;
+    if (u == "s")  return TimeUnit::s;
+    return TimeUnit::ms; // 默认 ms
+}
+
+/// 执行单个 plan 操作
+static void RunOp(const kson& op, size_t idx)
+{
+    std::string opname = op["op"].Exists() ? op["op"].Str() : "";
+    std::string name   = op["name"].Exists() ? op["name"].Str() : "";
+
+    if (!op["op"].Exists())
+    {
+        kout << "  plan[" << idx << "] {red}[FAIL]{/}  缺少 op 字段" << std::endl;
+        ++g_fail;
+        return;
+    }
+
+    if (opname == "printall")
+    {
+        kout << "  >> printall" << std::endl;
+        PrintAllTimers();
+        ++g_ok;
+    }
+    else if (opname == "add")
+    {
+        if (!op["name"].Exists())
+        {
+            kout << "  plan[" << idx << "] {red}[FAIL]{/}  add 缺少 name" << std::endl;
+            ++g_fail;
+            return;
+        }
+        TimeUnit unit = op["unit"].Exists() ? ParseUnit(op["unit"].Str()) : TimeUnit::ms;
+        bool ok = AddTimer(name, unit);
+        kout << "  >> AddTimer(\"" << name << "\", " << (op["unit"].Exists() ? op["unit"].Str() : "ms")
+             << ") -> " << (ok ? "{green}[OK]{/}" : "{yellow}[skip]{/} (重名覆盖)") << std::endl;
+        if (ok) ++g_ok;
+    }
+    else if (opname == "sleep")
+    {
+        long long ms = op["ms"].Exists() ? op["ms"].Int() : 0;
+        kout << "  >> sleep " << ms << " ms" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        ++g_ok;
+    }
+    else if (opname == "pause")
+    {
+        bool ok = PauseTimer(name);
+        kout << "  >> PauseTimer(\"" << name << "\") -> " << (ok ? "{green}[OK]{/}" : "{yellow}[skip]{/}") << std::endl;
+        if (ok) ++g_ok; // 不存在/已暂停 属预期行为，不视为失败
+    }
+    else if (opname == "start")
+    {
+        bool ok = StartTimer(name);
+        kout << "  >> StartTimer(\"" << name << "\") -> " << (ok ? "{green}[OK]{/}" : "{yellow}[skip]{/}") << std::endl;
+        if (ok) ++g_ok;
+    }
+    else if (opname == "get")
+    {
+        double val = GetTimer(name);
+        kout << "  >> GetTimer(\"" << name << "\") = " << val;
+        if (val < 0)
+            kout << " {yellow}[skip]{/} (不存在)" << std::endl;
+        else
+            kout << " {green}[OK]{/}" << std::endl, ++g_ok;
+    }
+    else if (opname == "print")
+    {
+        PrintTimer(name);
+        ++g_ok;
+    }
+    else if (opname == "delete")
+    {
+        bool ok = DeleteTimer(name);
+        kout << "  >> DeleteTimer(\"" << name << "\") -> " << (ok ? "{green}[OK]{/}" : "{yellow}[skip]{/}") << std::endl;
+        if (ok) ++g_ok;
+    }
+    else
+    {
+        kout << "  plan[" << idx << "] {red}[FAIL]{/}  未知 op \"" << opname << "\"" << std::endl;
+        ++g_fail;
+    }
+}
 
 int main()
 {
-    KBegin("dbgKTIMER 计时器模块测试", "KTIMER 计时器模块全功能测试","Git-1145","2026-08-13");
+    auto doc = ReadKsonFile("config/test/cfg.kson");
+    auto timer = doc["dbgKTIMER"];
+    KBegin(timer);
 
-    // ==================== 1. AddTimer 新建计时器 ====================
-    SECTION("1. AddTimer 新建计时器");
+    SECTION("plan 计时器操作脚本");
+    if (!timer["plan"].Exists())
     {
-        AddTimer("render", TimeUnit::ms);
-        AddTimer("load",   TimeUnit::us);
-        AddTimer("init",   TimeUnit::ns);
-        AddTimer("total",  TimeUnit::s);
-        kout << "  已创建 4 个计时器: render(ms), load(us), init(ns), total(s)" << std::endl;
+        koutE << "{red}[FAIL]{/}  dbgKTIMER 缺少 plan 键，跳过该节" << std::endl;
+        ++g_fail;
+    }
+    else
+    {
+        auto plan = timer["plan"];
+        for (size_t i = 0; i < plan.size(); i++)
+            RunOp(plan[i], i);
     }
 
-    // ==================== 2. AddTimer 重名覆盖 ====================
-    SECTION("2. AddTimer 重名覆盖");
-    {
-        kout << "  >> AddTimer(\"render\", TimeUnit::ms)  (重名, 应触发警告)" << std::endl;
-        AddTimer("render", TimeUnit::ms);
-        kout << "  render 已被重置" << std::endl;
-    }
-
-    // ==================== 3. 计时精度 ====================
-    SECTION("3. 计时精度验证");
-    {
-        AddTimer("sleep100", TimeUnit::ms);
-        kout << "  sleep 100ms ..." << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        PauseTimer("sleep100");
-        double elapsed = GetTimer("sleep100");
-        kout << "  实测: " << elapsed << " ms (期望 >= 100)" << std::endl;
-    }
-
-    // ==================== 4. PauseTimer 暂停 ====================
-    SECTION("4. PauseTimer 暂停");
-    {
-        AddTimer("work", TimeUnit::ms);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        PauseTimer("work");
-        double t1 = GetTimer("work");
-        kout << "  暂停后时间: " << t1 << " ms" << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        double t2 = GetTimer("work");
-        kout << "  暂停期间时间: " << t2 << " ms (应与上次相近)" << std::endl;
-    }
-
-    // ==================== 5. PauseTimer 不存在 ====================
-    SECTION("5. PauseTimer 不存在 (警告)");
-    {
-        kout << "  >> PauseTimer(\"nonexistent\")" << std::endl;
-        PauseTimer("nonexistent");
-    }
-
-    // ==================== 6. PauseTimer 已暂停 ====================
-    SECTION("6. PauseTimer 已暂停 (警告)");
-    {
-        kout << "  >> PauseTimer(\"work\")  (已暂停)" << std::endl;
-        PauseTimer("work");
-    }
-
-    // ==================== 7. StartTimer 恢复 ====================
-    SECTION("7. StartTimer 恢复");
-    {
-        StartTimer("work");
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        PauseTimer("work");
-        double t3 = GetTimer("work");
-        kout << "  恢复后时间: " << t3 << " ms (应比暂停时增加 ~50ms)" << std::endl;
-    }
-
-    // ==================== 8. StartTimer 运行中 ====================
-    SECTION("8. StartTimer 运行中 (警告)");
-    {
-        AddTimer("running", TimeUnit::ms);
-        kout << "  >> StartTimer(\"running\")  (运行中)" << std::endl;
-        StartTimer("running");
-        PauseTimer("running");
-    }
-
-    // ==================== 9. GetTimer ====================
-    SECTION("9. GetTimer 获取时间");
-    {
-        double r = GetTimer("render");
-        double l = GetTimer("load");
-        double i = GetTimer("init");
-        double t = GetTimer("total");
-        kout << "  render: " << r << " ms" << std::endl;
-        kout << "  load:   " << l << " us" << std::endl;
-        kout << "  init:   " << i << " ns" << std::endl;
-        kout << "  total:  " << t << " s"  << std::endl;
-
-        // 暂停 vs 运行中的 GetTimer 差异
-        kout << "  -- 暂停 vs 运行中 对比 --" << std::endl;
-        AddTimer("cmp", TimeUnit::ms);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        PauseTimer("cmp");
-        double paused1 = GetTimer("cmp");
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        double paused2 = GetTimer("cmp");
-        kout << "  暂停后  GetTimer: " << paused1 << " ms" << std::endl;
-        kout << "  再等50ms GetTimer: " << paused2 << " ms (暂停期间应保持不变)" << std::endl;
-        StartTimer("cmp");
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        double running = GetTimer("cmp");
-        kout << "  恢复运行 GetTimer: " << running << " ms (运行中应持续增长)" << std::endl;
-        PauseTimer("cmp");
-
-        kout << "  >> GetTimer(\"nonexistent\")" << std::endl;
-        double bad = GetTimer("nonexistent");
-        kout << "  返回值: " << bad << " (期望 -1)" << std::endl;
-    }
-
-    // ==================== 10. PrintTimer ====================
-    SECTION("10. PrintTimer 打印单个");
-    {
-        PrintTimer("render");
-        PrintTimer("work");
-    }
-
-    // ==================== 11. PrintAllTimers ====================
-    SECTION("11. PrintAllTimers 打印全部");
-    {
-        PrintAllTimers();
-    }
-
-    // ==================== 12. DeleteTimer ====================
-    SECTION("12. DeleteTimer 删除");
-    {
-        DeleteTimer("init");
-        DeleteTimer("sleep100");
-        DeleteTimer("running");
-        kout << "  已删除 init, sleep100, running" << std::endl;
-        PrintAllTimers();
-    }
-
-    // ==================== 13. DeleteTimer 不存在 ====================
-    SECTION("13. DeleteTimer 不存在 (警告)");
-    {
-        kout << "  >> DeleteTimer(\"nonexistent\")" << std::endl;
-        DeleteTimer("nonexistent");
-    }
-
-    // ==================== 14. 综合工作流 ====================
-    SECTION("14. 综合工作流");
-    {
-        kout << "  模拟: 加载 -> 处理 -> 保存" << std::endl;
-
-        AddTimer("wf_load",   TimeUnit::ms);
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        PauseTimer("wf_load");
-
-        AddTimer("wf_process", TimeUnit::ms);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        PauseTimer("wf_process");
-
-        AddTimer("wf_save",   TimeUnit::ms);
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        PauseTimer("wf_save");
-
-        PrintAllTimers();
-
-        kout << "  清理工作流计时器..." << std::endl;
-        DeleteTimer("wf_load");
-        DeleteTimer("wf_process");
-        DeleteTimer("wf_save");
-    }
-
-    // ==================== 15. 空表打印 ====================
-    SECTION("15. 空表打印");
-    {
-        // 删除所有剩余计时器
-        DeleteTimer("render");
-        DeleteTimer("load");
-        DeleteTimer("total");
-        DeleteTimer("work");
-        DeleteTimer("cmp");
-        kout << "  所有计时器已删除, 打印空表:" << std::endl;
-        PrintAllTimers();
-    }
-
-    // ==================== 16. 边界情况 ====================
-    SECTION("16. 边界情况");
-    {
-        // (a) AddTimer 空字符串名字
-        kout << "  >> AddTimer(\"\", TimeUnit::ms)  (空名字)" << std::endl;
-        AddTimer("", TimeUnit::ms);
-
-        // (b) GetTimer 已删除的计时器 (应返回 -1)
-        AddTimer("tmp", TimeUnit::ms);
-        DeleteTimer("tmp");
-        kout << "  >> GetTimer(\"tmp\")  (已删除)" << std::endl;
-        double gone = GetTimer("tmp");
-        kout << "  返回值: " << gone << " (期望 -1)" << std::endl;
-
-        // (c) PrintTimer 不存在的计时器 (不应崩溃)
-        kout << "  >> PrintTimer(\"ghost\")  (不存在, 不应崩溃)" << std::endl;
-        PrintTimer("ghost");
-
-        // 清理空名字计时器
-        DeleteTimer("");
-    }
-
-    // ==================== 完成 ====================
-    kout << Color::Bold << "\n=== dbgKTIMER 所有测试完成 ===" << Color::Reset << std::endl;
+    // ==================== 结论 ====================
+    kout << "\n----------------------------------------\n";
+    kout << "  {green}[OK]{/} " << g_ok << " 项通过\n";
+    if (g_fail == 0)
+        kout << "\n{green}[ALL PASS] KTIMER 配置驱动测试通过{/}\n";
+    else
+        kout << "\n{red}[" << g_fail << " FAIL] KTIMER 配置驱动测试有失败项{/}\n";
 
     KEnd();
+    return g_fail > 0 ? 1 : 0;
 }

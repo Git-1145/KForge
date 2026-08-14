@@ -31,16 +31,24 @@ using namespace KLOG;
 using namespace KCLI;
 
 // ==================== 测试辅助宏 ====================
+static int g_ok = 0, g_fail = 0;
 #define SECTION(name) kout << Color::Bold << "\n--- " << name << " ---" << Color::Reset << std::endl
 #define CHECK(cond, desc) do { \
-    if (cond) kout << "  [PASS] " << desc << std::endl; \
-    else koutE << "  [FAIL] " << desc << std::endl; \
+    if (cond) { kout << "  {green}[PASS]{/} " << desc << std::endl; ++g_ok; } \
+    else      { koutE << "  {red}[FAIL]{/} " << desc << std::endl; ++g_fail; } \
 } while(0)
 #define SHOW(label, value) kout << "  " << label << ": " << value << std::endl
 
 int main()
 {
-    kson doc = ReadKsonFile("config/test/cfg.kson")["dbgKSON"];
+    kson root = ReadKsonFile("config/test/cfg.kson");
+    kson doc = root["dbgKSON"];
+    if(!doc.Exists())
+    {
+        koutE << "{red}[FAIL]{/}  cfg.kson 缺少 dbgKSON 键，无法继续" << std::endl;
+        KEnd();
+        return 1;
+    }
     KBegin(doc);
 
     // ==================== 1. 字符串解析 ====================
@@ -571,9 +579,9 @@ int main()
         kout << "  >> 类型不匹配 (KSON_TYPE_MISMATCH → KLOG_ERROR + 可能抛异常)" << std::endl;
         #define TYPE_MISMATCH(expr, desc) do { \
             try { expr; \
-                kout << "    [PASS] " << desc << " (KLOG_ERROR 已触发, 未抛异常)" << std::endl; } \
+                kout << "    {green}[PASS]{/} " << desc << " (KLOG_ERROR 已触发, 未抛异常)" << std::endl; ++g_ok; } \
             catch (const std::exception& e) { \
-                kout << "    [PASS] " << desc << " (KLOG_ERROR + 抛异常: " << e.what() << ")" << std::endl; } \
+                kout << "    {green}[PASS]{/} " << desc << " (KLOG_ERROR + 抛异常: " << e.what() << ")" << std::endl; ++g_ok; } \
         } while(0)
 
         if (strNode) TYPE_MISMATCH(strNode->AsInt(),  "AsInt()  on string");
@@ -590,7 +598,55 @@ int main()
         #undef TYPE_MISMATCH
     }
 
-    // ==================== 完成 ====================
-    kout << Color::Bold << "\n=== dbgKSON 所有测试完成 ===" << Color::Reset << std::endl;
+    // ==================== 20. KSON 读取 inf/nan ====================
+    SECTION("20. KSON 读取 inf/nan");
+    {
+        kson inf_nan = doc["inf_nan"];
+        CHECK(inf_nan.Exists(), "inf_nan 节点存在");
+
+        // 关键字 inf / -inf / nan
+        kout << "  >> 关键字 inf / -inf / nan" << std::endl;
+        KBIGNUM::BigNum inf = inf_nan["inf"].Big();
+        KBIGNUM::BigNum neg_inf = inf_nan["neg_inf"].Big();
+        KBIGNUM::BigNum nan = inf_nan["nan"].Big();
+        CHECK(inf.IsInf() && !inf.isneg, "inf 关键字 → IsInf && !isneg");
+        CHECK(neg_inf.IsInf() && neg_inf.isneg, "-inf 关键字 → IsInf && isneg");
+        CHECK(nan.IsNan(), "nan 关键字 → IsNan");
+
+        // 引号字符串 "inf" / "NaN"（大小写不敏感，自动转为 BigNum 特殊状态）
+        kout << "  >> 引号字符串 \"inf\" / \"NaN\"" << std::endl;
+        KBIGNUM::BigNum str_inf = inf_nan["str_inf"].Big();
+        KBIGNUM::BigNum str_nan = inf_nan["str_nan"].Big();
+        CHECK(str_inf.IsInf() && !str_inf.isneg, "字符串 \"inf\" → IsInf");
+        CHECK(str_nan.IsNan(), "字符串 \"NaN\" → IsNan");
+
+        // 数组中的 inf/nan
+        kout << "  >> 数组中的 inf / -inf / nan" << std::endl;
+        kson arr = inf_nan["array"];
+        CHECK(arr.Exists() && arr.Size() == 5, "inf_nan.array 大小 = 5");
+        CHECK(arr[static_cast<size_t>(0)].Big().IsInf() && !arr[static_cast<size_t>(0)].Big().isneg,  "array[0] = inf");
+        CHECK(arr[static_cast<size_t>(1)].Big().IsInf() && arr[static_cast<size_t>(1)].Big().isneg,   "array[1] = -inf");
+        CHECK(arr[static_cast<size_t>(2)].Big().IsNan(),                          "array[2] = nan");
+        CHECK(arr[static_cast<size_t>(3)].Big().IsInf() && !arr[static_cast<size_t>(3)].Big().isneg,  "array[3] = \"INF\"");
+        CHECK(arr[static_cast<size_t>(4)].Big().IsNan(),                          "array[4] = \"nan\"");
+
+        // Auto() 可打印特殊状态
+        kout << "  >> Auto() 输出" << std::endl;
+        SHOW("inf_nan.inf",     inf_nan["inf"].Auto());
+        SHOW("inf_nan.neg_inf", inf_nan["neg_inf"].Auto());
+        SHOW("inf_nan.nan",     inf_nan["nan"].Auto());
+        SHOW("inf_nan.str_inf", inf_nan["str_inf"].Auto());
+        SHOW("inf_nan.str_nan", inf_nan["str_nan"].Auto());
+    }
+
+    // ==================== 结论 ====================
+    kout << "\n----------------------------------------\n";
+    kout << "  {green}[OK]{/} " << g_ok << " 项通过\n";
+    if (g_fail == 0)
+        kout << "\n{green}[ALL PASS] KSON 配置驱动测试通过{/}\n";
+    else
+        kout << "\n{red}[" << g_fail << " FAIL] KSON 配置驱动测试有失败项{/}\n";
+
     KEnd();
+    return g_fail > 0 ? 1 : 0;
 }

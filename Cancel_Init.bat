@@ -4,7 +4,7 @@ setlocal
 REM ============================================
 REM Cancel_Init.bat
 REM   Clean up all build artifacts:
-REM     - build.bat / fast_build.bat in study/
+REM     - build.bat / fast_build.bat in study/ and test/
 REM     - Release/ folders in study/ and test/
 REM     - base/KF.lib
 REM     - base/obj/
@@ -19,8 +19,9 @@ echo.
 set "ROOT=%~dp0"
 set "ROOT=%ROOT:~0,-1%"
 
-echo [1/6] Deleting build.bat / fast_build.bat in study\ ...
+echo [1/6] Deleting build.bat / fast_build.bat in study\ + test\ ...
 for /r "%ROOT%\study" %%b in (build.bat fast_build.bat) do if exist "%%b" del "%%b"
+for /r "%ROOT%\test"  %%b in (build.bat fast_build.bat) do if exist "%%b" del "%%b"
 echo       Done.
 
 echo [2/6] Deleting Release\ folders in study\ ...

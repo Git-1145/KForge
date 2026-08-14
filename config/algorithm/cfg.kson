@@ -16,7 +16,26 @@
             {
                 "name":"Choose the sorting RULE",
                 "options":["Ascending","Descending"]
-            }
+            },
+            "time_complexity":"{skyblue}O(n^2){/}"
+        },
+        "BucketSort":
+        {
+            "meta":
+            {
+                "cmdtitle": "朴素桶排序",
+                "title": "Bucket Sort",
+                "description": "Bucket Sort is a {yellow}distribution{skyblue} sorting algorithm that works\n by distributing the elements of an array into a number of buckets. \nEach bucket is then sorted individually, either using a different sorting algorithm\n or by recursively applying the bucket sort algorithm. \nThe elements are then collected from the buckets in order to obtain the sorted array.
+                                {red}This file is positive-integer-only!{/}",
+                "author": "Git-1145",
+                "date": "2026-08-14"
+            },
+            "sort_method":
+            {
+                "name":"Choose the sorting RULE",
+                "options":["Ascending","Descending"]
+            },
+            "time_complexity":"{skyblue}O(n){/}"
         }
     }
 }

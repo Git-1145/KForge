@@ -437,14 +437,42 @@ namespace KF
                     return Node(0LL);
                 }
                 char c = str[ReadPtr];
+                // 大小写不敏感关键字匹配（匹配成功则推进 ReadPtr）
+                auto MatchKw = [&](std::string_view kw) -> bool
+                {
+                    const size_t n = kw.size();
+                    if(ReadPtr + n > str.size()) return false;
+                    for(size_t i = 0; i < n; i++)
+                    {
+                        char a = str[ReadPtr + i], b = kw[i];
+                        if(a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+                        if(b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+                        if(a != b) return false;
+                    }
+                    ReadPtr += n;
+                    return true;
+                };
                 switch (c)
                 {
                     case CHAR_QUOTE1:
-                        return Node(ParseStr());
+                    {
+                        std::string s = ParseStr();
+                        // 引号字符串 inf/-inf/nan（大小写不敏感）→ 自动转为 BigNum 特殊状态
+                        KBIGNUM::BigNum sp(s);
+                        if(sp.state != KBIGNUM::BigNum::State::Normal)
+                            return Node(sp);
+                        return Node(std::move(s));
+                    }
                     case OBJ_BEGIN:
                         return Node(ParseObj());
                     case ARR_BEGIN:
                         return Node(ParseArr());
+                    case 'i':
+                    case 'I': // inf → 正无穷
+                        if(MatchKw("inf"))
+                            return Node(KBIGNUM::BigNum(KBIGNUM::BigNum::State::Inf));
+                        KLOG_ERROR(KSON_PARSE_VAL_ERROR,"INF");
+                        return Node(0LL);
                     case 't': //如果是Bool True
                         if(str.substr(ReadPtr,4) == "true")
                         {
@@ -462,19 +490,21 @@ namespace KF
                         KLOG_ERROR(KSON_PARSE_VAL_ERROR,"FALSE");
                         return Node(false);
                     case 'n':
-                        if(str.substr(ReadPtr,4) == "null")
-                        {
-                            ReadPtr += 4;
+                    case 'N': // nan → 非数；否则按 null 处理
+                        if(MatchKw("nan"))
+                            return Node(KBIGNUM::BigNum(KBIGNUM::BigNum::State::Nan));
+                        if(MatchKw("null"))
                             return Node();
-                        }
                         KLOG_ERROR(KSON_PARSE_VAL_ERROR,"NULL");
                         return Node();
                     default:
+                        // -inf → 负无穷
+                        if(c == CHAR_NEG && MatchKw("-inf"))
+                            return Node(KBIGNUM::BigNum(KBIGNUM::BigNum::State::NegInf));
                         // 数字（含正负号、小数点开头）交给 ParseNum 处理
                         if (std::isdigit(static_cast<unsigned char>(c)) || c == CHAR_NEG || c == CHAR_POS)
                             return ParseNum();
                         KLOG_ERROR(KSON_PARSE_VAL_ERROR,"Not supported");
-                        ReadPtr++; // 推进指针，避免上层循环对同一非预期字符反复重解析而死循环
                         return Node();
                 }
             }
@@ -778,6 +808,11 @@ namespace KF
             std::string res;
             res.resize(raw.size());
             size_t WriteIndex = 0, ReadIndex = 0;  // 读到哪 写到哪
+            // 跳过 UTF-8 BOM（EF BB BF）：带 BOM 的 kson 文件首字符会被误判为非法值
+            if(raw.size() >= 3 && static_cast<unsigned char>(raw[0]) == 0xEF &&
+               static_cast<unsigned char>(raw[1]) == 0xBB &&
+               static_cast<unsigned char>(raw[2]) == 0xBF)
+                ReadIndex = 3;
             enum State { Normal, InString, InEscape} state = Normal;  // 状态机 同时只能处于一种状态
             for(;ReadIndex < raw.size();)
             {

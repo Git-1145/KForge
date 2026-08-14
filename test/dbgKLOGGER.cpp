@@ -1,27 +1,27 @@
 /**
  * @file    dbgKLOGGER.cpp
- * @brief   KLOGGER 日志模块全功能测试
+ * @brief   KLOGGER 日志模块配置驱动测试
  *
- * 测试内容:
- *   1. KLOG_INFO / KLOG_WARNING / KLOG_ERROR 宏
- *   2. 各模块错误码触发
- *   3. MakeCode 错误码组装验证
- *   4. Table 码表查询
- *   5. LogLevel / Module 枚举值
- *   6. Color 颜色常量展示
- *   7. KLOG_FATAL 终止测试 (最后执行, 会终止程序)
+ * 检测单元从 config/test/cfg.kson 的 dbgKLOGGER 读取：
+ *   - codes:    错误码名列表，逐一展示 HexCode 与 Table 码表查询
+ *   - triggers: 日志触发配置（code + msg），按码的等级动态触发
+ *
+ * 若配置键缺失则输出 {red}[FAIL]{/} 并继续，不会退出程序。
  */
 
 #include "base/KF.hpp"
+#include <unordered_map>
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;
 using namespace KCLI;
 
-// ==================== 测试辅助宏 ====================
+// ==================== 测试辅助 ====================
 #define SECTION(name) kout << Color::Bold << "\n--- " << name << " ---" << Color::Reset << std::endl
 
-// 辅助函数: 将 Code 转为 hex 字符串 (避免直接操作 cout 格式状态)
+static int g_ok = 0, g_fail = 0;
+
+// 辅助函数: 将 Code 转为 hex 字符串
 static std::string HexCode(Code c)
 {
     std::ostringstream oss;
@@ -29,138 +29,167 @@ static std::string HexCode(Code c)
     return oss.str();
 }
 
+/// 错误码名 -> Code 常量 查找表（测试样本的码名统一在 cfg.kson 中定义）
+static Code LookupCode(const std::string& name)
+{
+    static const std::unordered_map<std::string, Code> m =
+    {
+        { "TEST_INFO",              TEST_INFO },
+        { "TEST_WARN",              TEST_WARN },
+        { "TEST_ERROR",             TEST_ERROR },
+        { "TEST_FATAL",             TEST_FATAL },
+        { "KFIO_FILE_OPEN_FAIL",    KFIO_FILE_OPEN_FAIL },
+        { "KFIO_FILE_READ_FAIL",    KFIO_FILE_READ_FAIL },
+        { "KCLI_INPUT_INVALID",     KCLI_INPUT_INVALID },
+        { "KTIMER_NOT_FOUND",       KTIMER_NOT_FOUND },
+        { "KTIMER_ALREADY_EXISTS",  KTIMER_ALREADY_EXISTS },
+        { "KTIMER_STATE_ERROR",     KTIMER_STATE_ERROR },
+        { "KSON_PARSE_STRE",        KSON_PARSE_STRE },
+        { "KSON_PARSE_STR_NOEND",   KSON_PARSE_STR_NOEND },
+        { "KSON_PARSE_MULPOINT",    KSON_PARSE_MULPOINT },
+        { "KSON_PARSE_NUM_UE",      KSON_PARSE_NUM_UE },
+        { "KSON_PARSE_NUMOR",       KSON_PARSE_NUMOR },
+        { "KSON_PARSE_NUM_USTYPE",  KSON_PARSE_NUM_USTYPE },
+        { "KSON_PARSE_ESCAPE_SPECIAL", KSON_PARSE_ESCAPE_SPECIAL },
+        { "KSON_PARSE_UNFINISHED_ESCAPE", KSON_PARSE_UNFINISHED_ESCAPE },
+        { "KSON_PARSE_BIG_EXP",     KSON_PARSE_BIG_EXP },
+        { "KSON_PARSE_VAL_END",     KSON_PARSE_VAL_END },
+        { "KSON_PARSE_VAL_ERROR",   KSON_PARSE_VAL_ERROR },
+        { "KSON_PARSE_ARR_BEGIN",   KSON_PARSE_ARR_BEGIN },
+        { "KSON_PARSE_ARRUE",       KSON_PARSE_ARRUE },
+        { "KSON_PARSE_OBJ_BEGIN",   KSON_PARSE_OBJ_BEGIN },
+        { "KSON_PARSE_OBJ_KEY_QUOTE", KSON_PARSE_OBJ_KEY_QUOTE },
+        { "KSON_PARSE_OBJ_SEPERATOR", KSON_PARSE_OBJ_SEPERATOR },
+        { "KSON_PARSE_OBJUE",       KSON_PARSE_OBJUE },
+        { "KSON_PARSE_TRAIL",       KSON_PARSE_TRAIL },
+        { "KSON_TYPE_MISMATCH",     KSON_TYPE_MISMATCH },
+        { "KBIGNUM_MULPOINT",       KBIGNUM_MULPOINT },
+        { "KBIGNUM_INVALIDCHAR",    KBIGNUM_INVALIDCHAR },
+        { "UNKNOWN",                UNKNOWN },
+    };
+    auto it = m.find(name);
+    return it != m.end() ? it->second : static_cast<Code>(-1);
+}
+
+/// 从错误码中提取日志等级（bit20-23）
+static LogLevel LevelOf(Code c)
+{
+    return static_cast<LogLevel>((c >> 20) & 0xF);
+}
+
+/// 按码的等级动态触发日志
+static void Trigger(Code c, const std::string& msg)
+{
+    switch (LevelOf(c))
+    {
+        case LogLevel::Info:    KLOG_INFO(c, msg);    break;
+        case LogLevel::Warning: KLOG_WARNING(c, msg); break;
+        case LogLevel::Error:   KLOG_ERROR(c, msg);   break;
+        case LogLevel::Fatal:   KLOG_WARNING(c, msg); break; // 配置中不触发 Fatal（会终止程序），降级为 Warning
+        default:                KLOG_ERROR(c, msg);   break;
+    }
+}
+
 int main()
 {
-    KBegin("dbgKLOGGER 模块测试", "KLOGGER 日志模块全功能测试","Git-1145","2026-08-13");
+    auto doc = ReadKsonFile("config/test/cfg.kson");
+    auto logger = doc["dbgKLOGGER"];
+    KBegin(logger["meta"].Exists() ? logger["meta"] : doc["dbgKSON"]["meta"]);
 
-    // ==================== 1. 日志宏 ====================
-    SECTION("1. KLOG_INFO / WARNING / ERROR");
+    // ==================== 1. codes 错误码展示 + Table 查询 ====================
+    SECTION("1. codes 错误码 + Table 码表查询");
+    if (!logger["codes"].Exists())
     {
-        kout << "  >> KLOG_INFO(TEST_INFO, \"这是一条信息日志\")" << std::endl;
-        KLOG_INFO(TEST_INFO, "这是一条信息日志");
-
-        kout << "  >> KLOG_WARNING(TEST_WARN, \"这是一条警告日志\")" << std::endl;
-        KLOG_WARNING(TEST_WARN, "这是一条警告日志");
-
-        kout << "  >> KLOG_ERROR(TEST_ERROR, \"这是一条错误日志\")" << std::endl;
-        KLOG_ERROR(TEST_ERROR, "这是一条错误日志");
-
-        kout << "  >> KLOG_INFO(TEST_INFO, \"\")  (空 extra)" << std::endl;
-        KLOG_INFO(TEST_INFO, "");
+        koutE << "{red}[FAIL]{/}  dbgKLOGGER 缺少 codes 键，跳过该节" << std::endl;
+        ++g_fail;
+    }
+    else
+    {
+        auto codes = logger["codes"];
+        for (size_t i = 0; i < codes.size(); i++)
+        {
+            std::string name = codes[i].Str();
+            Code c = LookupCode(name);
+            if (c == static_cast<Code>(-1))
+            {
+                kout << "  " << name << "  {red}[FAIL]{/}  无法解析为 Code" << std::endl;
+                ++g_fail;
+                continue;
+            }
+            auto it = Table.find(c);
+            std::string desc = (it != Table.end()) ? std::string(it->second) : "(not in table)";
+            kout << "  " << name << " = " << HexCode(c);
+            if (it != Table.end())
+                kout << " {green}[OK]{/}  -> " << desc;
+            else
+                kout << " {red}[FAIL]{/}  不在码表中，desc=" << desc;
+            kout << std::endl;
+            if (it != Table.end()) ++g_ok; else ++g_fail;
+        }
     }
 
-    // ==================== 2. 各模块错误码 ====================
-    SECTION("2. 各模块错误码触发");
+    // ==================== 2. triggers 日志触发 ====================
+    SECTION("2. triggers 日志触发");
+    if (!logger["triggers"].Exists())
     {
-        // KSON 模块
-        kout << "  >> KLOG_WARNING(KSON_PARSE_MULPOINT, \"multiple dots\")" << std::endl;
-        KLOG_WARNING(KSON_PARSE_MULPOINT, "multiple dots in number");
-
-        kout << "  >> KLOG_ERROR(KSON_PARSE_NUMOR, \"overflow\")" << std::endl;
-        KLOG_ERROR(KSON_PARSE_NUMOR, "number overflow");
-
-        kout << "  >> KLOG_WARNING(KSON_PARSE_ESCAPE_SPECIAL, \"bad escape\")" << std::endl;
-        KLOG_WARNING(KSON_PARSE_ESCAPE_SPECIAL, "bad escape char");
-
-        kout << "  >> KLOG_ERROR(KSON_PARSE_STR_NOEND, \"no closing quote\")" << std::endl;
-        KLOG_ERROR(KSON_PARSE_STR_NOEND, "no closing quote");
-
-        // KCLI 模块
-        kout << "  >> KLOG_WARNING(KCLI_INPUT_INVALID, \"bad input\")" << std::endl;
-        KLOG_WARNING(KCLI_INPUT_INVALID, "bad input");
-
-        // KFIO 模块
-        kout << "  >> KLOG_ERROR(KFIO_FILE_OPEN_FAIL, \"simulated\")" << std::endl;
-        // 注: KFIO_FILE_OPEN_FAIL 是 Fatal 级别, 这里用 Error 级别的码演示
-        KLOG_ERROR(KSON_PARSE_VAL_ERROR, "simulated KFIO error");
-
-        // KBIGNUM 模块
-        kout << "  >> KLOG_WARNING(KBIGNUM_MULPOINT, \"multiple dots\")" << std::endl;
-        KLOG_WARNING(KBIGNUM_MULPOINT, "multiple dots in bignum");
-
-        kout << "  >> KLOG_WARNING(KBIGNUM_INVALIDCHAR, \"invalid char\")" << std::endl;
-        KLOG_WARNING(KBIGNUM_INVALIDCHAR, "invalid char in bignum");
+        koutE << "{red}[FAIL]{/}  dbgKLOGGER 缺少 triggers 键，跳过该节" << std::endl;
+        ++g_fail;
+    }
+    else
+    {
+        auto triggers = logger["triggers"];
+        for (size_t i = 0; i < triggers.size(); i++)
+        {
+            std::string name = triggers[i]["code"].Exists() ? triggers[i]["code"].Str() : "";
+            std::string msg  = triggers[i]["msg"].Exists()  ? triggers[i]["msg"].Str()  : "";
+            if (!triggers[i]["code"].Exists())
+            {
+                kout << "  trigger[" << i << "] {red}[FAIL]{/}  缺少 code 字段" << std::endl;
+                ++g_fail;
+                continue;
+            }
+            Code c = LookupCode(name);
+            if (c == static_cast<Code>(-1))
+            {
+                kout << "  trigger[" << i << "] {red}[FAIL]{/}  未知码名 \"" << name << "\"" << std::endl;
+                ++g_fail;
+                continue;
+            }
+            kout << "  >> " << name << "(" << HexCode(c) << ") \"" << msg << "\"" << std::endl;
+            Trigger(c, msg);
+            ++g_ok;
+        }
     }
 
     // ==================== 3. MakeCode 错误码组装 ====================
     SECTION("3. MakeCode 错误码组装");
     {
-        // 测试模块
-        kout << "  TEST_INFO  = " << HexCode(TEST_INFO)  << std::endl;
-        kout << "  TEST_WARN  = " << HexCode(TEST_WARN)  << std::endl;
-        kout << "  TEST_ERROR = " << HexCode(TEST_ERROR) << std::endl;
-        kout << "  TEST_FATAL = " << HexCode(TEST_FATAL) << std::endl;
-
-        // KFIO 模块
-        kout << "  KFIO_FILE_OPEN_FAIL = " << HexCode(KFIO_FILE_OPEN_FAIL) << std::endl;
-        kout << "  KFIO_FILE_READ_FAIL = " << HexCode(KFIO_FILE_READ_FAIL) << std::endl;
-
-        // KSON 模块
-        kout << "  KSON_PARSE_STRE      = " << HexCode(KSON_PARSE_STRE)      << std::endl;
-        kout << "  KSON_PARSE_MULPOINT  = " << HexCode(KSON_PARSE_MULPOINT)  << std::endl;
-        kout << "  KSON_TYPE_MISMATCH   = " << HexCode(KSON_TYPE_MISMATCH)   << std::endl;
-
-        // KCLI 模块
-        kout << "  KCLI_INPUT_INVALID   = " << HexCode(KCLI_INPUT_INVALID)   << std::endl;
-
-        // KBIGNUM 模块
-        kout << "  KBIGNUM_MULPOINT     = " << HexCode(KBIGNUM_MULPOINT) << std::endl;
-        kout << "  KBIGNUM_INVALIDCHAR  = " << HexCode(KBIGNUM_INVALIDCHAR) << std::endl;
-
-        // UNKNOWN
-        kout << "  UNKNOWN              = " << HexCode(UNKNOWN)              << std::endl;
-
-        // 手动组装验证
         Code manual = MakeCode(Module::KSON, LogLevel::Error, 0x01, 0x001);
         kout << "  MakeCode(KSON, Error, 0x01, 0x001) = " << HexCode(manual) << std::endl;
-        kout << "  == KSON_PARSE_STRE ? " << (manual == KSON_PARSE_STRE ? "YES" : "NO") << std::endl;
+        if (manual == KSON_PARSE_STRE)
+            kout << "  == KSON_PARSE_STRE {green}[OK]{/}" << std::endl, ++g_ok;
+        else
+            kout << "  == KSON_PARSE_STRE {red}[FAIL]{/}" << std::endl, ++g_fail;
     }
 
-    // ==================== 4. Table 码表查询 ====================
-    SECTION("4. Table 码表查询");
-    {
-        auto show = [](const char* name, Code code) {
-            auto it = Table.find(code);
-            std::string desc = (it != Table.end()) ? std::string(it->second) : "(not in table)";
-            kout << "  " << name << " -> " << desc << std::endl;
-        };
-
-        show("TEST_INFO",              TEST_INFO);
-        show("TEST_WARN",              TEST_WARN);
-        show("TEST_ERROR",             TEST_ERROR);
-        show("KSON_PARSE_STRE",        KSON_PARSE_STRE);
-        show("KSON_PARSE_MULPOINT",    KSON_PARSE_MULPOINT);
-        show("KFIO_FILE_OPEN_FAIL",    KFIO_FILE_OPEN_FAIL);
-        show("KCLI_INPUT_INVALID",     KCLI_INPUT_INVALID);
-        show("KBIGNUM_MULPOINT",       KBIGNUM_MULPOINT);
-        show("KBIGNUM_INVALIDCHAR",    KBIGNUM_INVALIDCHAR);
-        show("UNKNOWN",                UNKNOWN);
-
-        // 不在码表中的码
-        Code fake = MakeCode(Module::Common, LogLevel::Info, 0xFF, 0xFFF);
-        auto it = Table.find(fake);
-        kout << "  (fake code) -> " << (it != Table.end() ? std::string(it->second) : "(not in table)") << std::endl;
-    }
-
-    // ==================== 5. LogLevel / Module 枚举 ====================
-    SECTION("5. LogLevel / Module 枚举");
+    // ==================== 4. LogLevel / Module 枚举 ====================
+    SECTION("4. LogLevel / Module 枚举");
     {
         kout << "  LogLevel::Info    = " << static_cast<uint32_t>(LogLevel::Info)    << std::endl;
         kout << "  LogLevel::Warning = " << static_cast<uint32_t>(LogLevel::Warning) << std::endl;
         kout << "  LogLevel::Error   = " << static_cast<uint32_t>(LogLevel::Error)   << std::endl;
         kout << "  LogLevel::Fatal   = " << static_cast<uint32_t>(LogLevel::Fatal)   << std::endl;
-
-        kout << "  Module::Unknown = " << HexCode(Module::Unknown) << std::endl;
-        kout << "  Module::Common  = " << HexCode(Module::Common)  << std::endl;
-        kout << "  Module::KFIO    = " << HexCode(Module::KFIO)    << std::endl;
-        kout << "  Module::KSON    = " << HexCode(Module::KSON)    << std::endl;
-        kout << "  Module::KTIMER  = " << HexCode(Module::KTIMER)  << std::endl;
-        kout << "  Module::KCLI    = " << HexCode(Module::KCLI)    << std::endl;
-        kout << "  Module::KBIGNUM = " << HexCode(Module::KBIGNUM) << std::endl;
+        kout << "  Module::Unknown   = " << HexCode(Module::Unknown) << std::endl;
+        kout << "  Module::Common    = " << HexCode(Module::Common)  << std::endl;
+        kout << "  Module::KFIO      = " << HexCode(Module::KFIO)    << std::endl;
+        kout << "  Module::KSON      = " << HexCode(Module::KSON)    << std::endl;
+        kout << "  Module::KTIMER    = " << HexCode(Module::KTIMER)  << std::endl;
+        kout << "  Module::KCLI      = " << HexCode(Module::KCLI)    << std::endl;
+        kout << "  Module::KBIGNUM   = " << HexCode(Module::KBIGNUM) << std::endl;
     }
 
-    // ==================== 6. Color 颜色常量展示 ====================
-    SECTION("6. Color 颜色常量展示");
+    // ==================== 5. Color 颜色常量展示 ====================
+    SECTION("5. Color 颜色常量展示");
     {
         kout << Color::Red         << "  Red"          << Color::Reset << std::endl;
         kout << Color::Green       << "  Green"        << Color::Reset << std::endl;
@@ -170,29 +199,18 @@ int main()
         kout << Color::Cyan        << "  Cyan"         << Color::Reset << std::endl;
         kout << Color::LightYellow << "  LightYellow"  << Color::Reset << std::endl;
         kout << Color::Orange      << "  Orange"       << Color::Reset << std::endl;
-        kout << Color::SkyBlue     << "  SkyBlue (kout 默认)" << Color::Reset << std::endl;
+        kout << Color::SkyBlue     << "  SkyBlue"      << Color::Reset << std::endl;
         kout << Color::Bold        << "  Bold"         << Color::Reset << std::endl;
-
-        // 日志级别对应颜色
-        kout << "  日志颜色映射:" << std::endl;
-        kout << Color::Green       << "    [INFO] Info 级别 = Green"       << Color::Reset << std::endl;
-        kout << Color::LightYellow << "    [WARNING] Warning 级别 = LightYellow" << Color::Reset << std::endl;
-        kout << Color::Orange      << "    [ERROR] Error 级别 = Orange"     << Color::Reset << std::endl;
-        kout << Color::Bold << Color::Red << "    [FATAL] Fatal 级别 = Bold+Red" << Color::Reset << std::endl;
     }
 
-    // ==================== 完成 ====================
-    kout << Color::Bold << "\n=== dbgKLOGGER 测试完成 (除 Fatal) ===" << Color::Reset << std::endl;
+    // ==================== 结论 ====================
+    kout << "\n----------------------------------------\n";
+    kout << "  {green}[OK]{/} " << g_ok << " 项通过\n";
+    if (g_fail == 0)
+        kout << "\n{green}[ALL PASS] KLOGGER 配置驱动测试通过{/}\n";
+    else
+        kout << "\n{red}[" << g_fail << " FAIL] KLOGGER 配置驱动测试有失败项{/}\n";
 
-    // ==================== 7. KLOG_FATAL 终止测试 (最后执行) ====================
-    SECTION("7. KLOG_FATAL - 终止测试");
-    {
-        koutW << "  警告: 以下操作将触发 KLOG_FATAL 并终止程序" << std::endl;
-        kout << "  >> KLOG_FATAL(TEST_FATAL, \"程序将终止\")" << std::endl;
-        KLOG_FATAL(TEST_FATAL, "程序将终止");
-
-        // 不会执行到这里
-    }
-
-    return 0;
+    KEnd();
+    return g_fail > 0 ? 1 : 0;
 }

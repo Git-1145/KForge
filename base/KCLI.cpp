@@ -1,5 +1,4 @@
 #include "base/KF.hpp"
-#include <unordered_map>
 using namespace KFIO;
 using namespace KSON;
 using namespace KLOG;

@@ -112,6 +112,24 @@ int main()
         kout << "  int=" << i << ", dec=" << d << ", str=" << s << ", bool=" << b << std::endl;
     }
 
+    // ==================== 7.1 kin 无符号类型支持 ====================
+    SECTION("7.1 kin 无符号类型 (size_t, uint 等)");
+    {
+        kout << "  请输入一个正整数 (unsigned int): ";
+        unsigned int ui;
+        kin >> ui;
+        kout << "  你输入的 unsigned int = " << ui << std::endl;
+
+        kout << "  请输入一个正整数 (size_t): ";
+        size_t st;
+        kin >> st;
+        kout << "  你输入的 size_t = " << st << std::endl;
+
+        koutW << "  测试负数输入 (会触发警告): ";
+        // 注意：若输入 -5，Kin 会警告并整组重试
+        // 这里仅验证类型支持，实际警告由 KinSession 在提交时处理
+    }
+
     // ==================== 8. KOptions 菜单 (字符串配置) ====================
     SECTION("8. KOptions 菜单 (字符串配置)");
     {
@@ -138,6 +156,37 @@ int main()
         kout << "  测试 kpause() 暂停功能" << std::endl;
         kpause();
         kout << "  暂停结束, 继续执行" << std::endl;
+    }
+
+    // ==================== 11. 从 KSON 读取 inf / -inf / nan ====================
+    SECTION("11. 从 KSON 读取 inf / -inf / nan");
+    {
+        kson in = main["inf_nan"];
+        if(!in.Exists())
+        {
+            koutE << "  缺少 inf_nan 键, 跳过" << std::endl;
+        }
+        else
+        {
+            // 关键字形式
+            KBIGNUM::BigNum inf     = in["inf"].Big();
+            KBIGNUM::BigNum neg_inf = in["neg_inf"].Big();
+            KBIGNUM::BigNum nan     = in["nan"].Big();
+            kout << "  inf     关键字: " << inf.ToStr()     << "  (IsInf=" << inf.IsInf()     << ")" << std::endl;
+            kout << "  -inf    关键字: " << neg_inf.ToStr() << "  (IsInf=" << neg_inf.IsInf() << ")" << std::endl;
+            kout << "  nan     关键字: " << nan.ToStr()     << "  (IsNan=" << nan.IsNan()     << ")" << std::endl;
+
+            // 字符串形式（大小写不敏感）
+            KBIGNUM::BigNum str_inf = in["str_inf"].Big();
+            KBIGNUM::BigNum str_nan = in["str_nan"].Big();
+            kout << "  \"inf\"  字符串: " << str_inf.ToStr() << "  (IsInf=" << str_inf.IsInf() << ")" << std::endl;
+            kout << "  \"NaN\"  字符串: " << str_nan.ToStr() << "  (IsNan=" << str_nan.IsNan() << ")" << std::endl;
+
+            // 数组中的 inf / -inf / nan
+            kson arr = in["array"];
+            for(size_t i = 0; i < arr.Size(); i++)
+                kout << "  array[" << i << "] = " << arr[i].Big().ToStr() << std::endl;
+        }
     }
 
     // ==================== 完成 ====================

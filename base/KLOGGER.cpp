@@ -111,6 +111,7 @@ namespace KF
         const Code TEST_WARN  = MakeCode(Module::Common, LogLevel::Warning, 0x01, 0x002);
         const Code TEST_ERROR = MakeCode(Module::Common, LogLevel::Error,   0x01, 0x003);
         const Code TEST_FATAL = MakeCode(Module::Common, LogLevel::Fatal,   0x01, 0x004);
+        const Code SYSTEM_OOM = MakeCode(Module::Common, LogLevel::Fatal,   0x01, 0x005);
 
         // KFIO 模块 (02)
         const Code KFIO_FILE_OPEN_FAIL = MakeCode(Module::KFIO, LogLevel::Fatal, 0x01, 0x001);
@@ -147,6 +148,7 @@ namespace KF
         // KBIGNUM 模块 (06)
         const Code KBIGNUM_MULPOINT            = MakeCode(Module::KBIGNUM, LogLevel::Warning, 0x01, 0x002);
         const Code KBIGNUM_INVALIDCHAR         = MakeCode(Module::KBIGNUM, LogLevel::Warning, 0x01, 0x004);
+        const Code KBIGNUM_DIVBYZERO           = MakeCode(Module::KBIGNUM, LogLevel::Error, 0x02, 0x003);
         // 未知模块 (00)
         const Code UNKNOWN = MakeCode(Module::Unknown, LogLevel::Fatal, 0x00, 0x000);
 
@@ -161,6 +163,7 @@ namespace KF
             {TEST_WARN,                     "测试-警告"},
             {TEST_ERROR,                    "测试-错误"},
             {TEST_FATAL,                    "测试-严重错误"},
+            {SYSTEM_OOM,                    "out of memory,can not allocate memory"},
             // KFIO 模块
             {KFIO_FILE_OPEN_FAIL,           "KFIO open file failed"},
             {KFIO_FILE_READ_FAIL,           "KFIO read file failed"},
@@ -190,6 +193,9 @@ namespace KF
             {KSON_PARSE_OBJUE,              "KSON Parse object, unexpected char"},
             {KSON_PARSE_TRAIL,              "KSON Parse string, unexpected following char"},
             {KSON_TYPE_MISMATCH,            "KSON AsSth type mismatch"},
+            {KBIGNUM_MULPOINT,              "KBIGNUM Parse number, multiple decimal points"},
+            {KBIGNUM_INVALIDCHAR,           "KBIGNUM Parse number, The number contains unsupported non-Arabic digits"},
+            {KBIGNUM_DIVBYZERO,             "KBIGNUM divide by zero, result is +/-inf (0/0 is nan)"},
         };
     };
 }

@@ -25,8 +25,8 @@ using Code = uint32_t;
 /**
  * @file KF.hpp
  * @brief KForge 所有基础模块的声明文件
- * @version 1.0.0
- * @date 2026-08-13
+ * @version 1.0.1
+ * @date 2026-08-14
  * @author Git-1145
  * @usage #include "KF.hpp"
  * @usage using namespace xxx; // xxx 为模块名
@@ -123,7 +123,7 @@ namespace KF
         extern const Code TEST_WARN;   // 测试-警告
         extern const Code TEST_ERROR;  // 测试-错误
         extern const Code TEST_FATAL;  // 测试-严重错误
-
+        extern const Code SYSTEM_OOM;  // 系统内存不足 FATAL
         // KFIO 模块 (02)
         extern const Code KFIO_FILE_OPEN_FAIL; // KFIO 文件打开失败 FATAL
         extern const Code KFIO_FILE_READ_FAIL; // KFIO 文件读取失败 FATAL
@@ -159,6 +159,7 @@ namespace KF
         //KBIGNUM 模块 (06)
         extern const Code KBIGNUM_MULPOINT;            // 解析警告 多余的小数点.
         extern const Code KBIGNUM_INVALIDCHAR;        // 解析警告 数字中有不支持的非阿拉伯数字
+        extern const Code KBIGNUM_DIVBYZERO;        // 除零错误 ERROR
         // 未知模块 (00)
         extern const Code UNKNOWN;
 
@@ -187,21 +188,20 @@ namespace KF
 
         /// @brief 面向内部的运算（自由函数）
         slimb  AbsCmp(const BigNum& a, const BigNum& b); // 1 a>b ; 0 a=b; -1 a<b
+        BigNum ScaleTo(const BigNum& x, size_t newScale); // 对齐小数位（数值不变，要求 newScale >= x.scale）
         BigNum AbsAdd(const BigNum& a, const BigNum& b);
         BigNum AbsSub(const BigNum& a, const BigNum& b);
         BigNum AbsMul(const BigNum& a, const BigNum& b);
-        BigNum AbsDiv(const BigNum& a, const BigNum& b);
-        BigNum AbsMod(const BigNum& a, const BigNum& b);
-        BigNum AbsPow(const BigNum& a, const BigNum& b);
+        BigNum AbsDiv(const BigNum& a, const BigNum& b, size_t keep = 9); // 除法：a、b 均为整数且能整除 → 整数，否则保留 keep 位小数（默认 9）
+        BigNum AbsMod(const BigNum& a, const BigNum& b); // 取模（除法取余）：abs(a) mod abs(b)
 
         BigNum AbsMulSchool(const BigNum& a, const BigNum& b); // 乘法（朴素算法）
         BigNum AbsMulKaratsuba(const BigNum& a, const BigNum& b); // 乘法（Karatsuba 算法）
         BigNum AbsMulToomCook3(const BigNum& a, const BigNum& b); // 乘法（Toom-Cook 3 算法）
         BigNum AbsMulNTT(const BigNum& a, const BigNum& b); // 乘法（NTT 算法）
 
-        BigNum DivSchool(const BigNum& a, const BigNum& b); // 除法（朴素算法）
-        BigNum DivNewton(const BigNum& a, const BigNum& b); // 除法（牛顿迭代法）
-        BigNum DivNewtonMod(const BigNum& a, const BigNum& b); // 除法（牛顿迭代法）取模
+        BigNum AbsDivSchool(const BigNum& a, const BigNum& b, size_t keep = 9); // 除法（朴素算法），保留 keep 位小数
+        BigNum Pow(const BigNum& a, const BigNum& b); // 幂运算：a^b（快速幂，支持负指数/分数指数/inf-nan 规则）
         class BigNum
         {
             public:
@@ -209,14 +209,23 @@ namespace KF
                 /// @attention base = 10 ^ 9 ,之所以不用 2^32 是因为这 ToStr 太麻烦且太慢
                 bool isneg = false; // 是否为负数
                 size_t scale = 0; // 小数位数
-                
+
+                /// @brief 特殊状态
+                enum class State { Normal, Inf, NegInf, Nan };
+                State state = State::Normal; // Normal 普通 / Inf 正无穷 / NegInf 负无穷 / Nan 非数
+
+                bool IsInf()    const { return state == State::Inf  || state == State::NegInf; } // ±无穷
+                bool IsNan()    const { return state == State::Nan; }                             // 非数
+                bool IsNormal() const { return state == State::Normal; }                          // 普通数值
+
                 static BigNum ToBig(const std::string& str); // 字符串转大数
                 std::string   ToStr() const; // 大数转字符串
 
-                /// @brief 构造 支持空 字符串 数字
+                /// @brief 构造 支持空 字符串 数字 特殊状态
                 BigNum() = default;
-                BigNum(const std::string& str);// 用字符串构造
+                BigNum(const std::string& str);// 用字符串构造（inf/-inf/nan 大小写不敏感）
                 BigNum(const dlimb& num);// 用数字构造
+                explicit BigNum(State s); // 特殊状态构造（Inf / NegInf / Nan）
 
                 /// @brief 面向用户的运算
                 BigNum operator+(const BigNum& b) const;
@@ -224,14 +233,49 @@ namespace KF
                 BigNum operator*(const BigNum& b) const;
                 BigNum operator/(const BigNum& b) const;
                 BigNum operator%(const BigNum& b) const;
-                BigNum Pow(const BigNum& b) const;
-                /// @brief 比较 (由于这是c++ 17 所以不使用三目运算符)
-                bool operator==(const BigNum& b) const{return !(*this < b) && !(b < *this);}
-                bool operator!=(const BigNum& b) const{return (*this < b) || (b < *this);}
-                bool operator<(const BigNum& b) const {if(isneg && !b.isneg) return true; else if(!isneg && b.isneg) return false; else return AbsCmp(*this,b) == (isneg ? 1 : -1); }
-                bool operator<=(const BigNum& b) const {return (*this < b) || (*this == b);}
-                bool operator>(const BigNum& b) const {return !(*this <= b);}
-                bool operator>=(const BigNum& b) const{return !(*this < b);}
+                /// @brief 比较 (IEEE-754：NaN 与任何比较均返回 false)
+                bool operator==(const BigNum& b) const
+                {
+                    if(state == State::Nan || b.state == State::Nan) return false;
+                    if(state != State::Normal || b.state != State::Normal)
+                        return state == b.state; // inf == inf, -inf == -inf, 其余不等
+                    return !(*this < b) && !(b < *this);
+                }
+                bool operator!=(const BigNum& b) const
+                {
+                    return !(*this == b); // NaN 时 == 为 false，故 != 为 true（IEEE-754）
+                }
+                bool operator<(const BigNum& b) const
+                {
+                    if(state == State::Nan || b.state == State::Nan) return false; // NaN 比较返回 false
+                    // 特殊状态比较：-inf < normal < inf
+                    if(state == State::NegInf) return b.state != State::NegInf; // -inf 小于所有非 -inf
+                    if(b.state == State::Inf)  return state != State::Inf;      // 所有非 inf 小于 inf
+                    if(state == State::Inf)    return false;                    // inf 不小于任何数
+                    if(b.state == State::NegInf) return false;                  // 任何数不小于 -inf
+                    // 以下均为 Normal
+                    if(isneg && !b.isneg) return true;
+                    if(!isneg && b.isneg) return false;
+                    // 同号：对齐小数位后按绝对值比较
+                    const size_t smax = (std::max)(scale, b.scale);
+                    const slimb c = AbsCmp(ScaleTo(*this, smax), ScaleTo(b, smax));
+                    return c == (isneg ? 1 : -1);
+                }
+                bool operator<=(const BigNum& b) const
+                {
+                    if(state == State::Nan || b.state == State::Nan) return false;
+                    return (*this < b) || (*this == b);
+                }
+                bool operator>(const BigNum& b) const
+                {
+                    if(state == State::Nan || b.state == State::Nan) return false;
+                    return !(*this <= b);
+                }
+                bool operator>=(const BigNum& b) const
+                {
+                    if(state == State::Nan || b.state == State::Nan) return false;
+                    return !(*this < b);
+                }
 
                 /// @brief 输出
                 friend std::ostream& operator<<(std::ostream& os, const BigNum& b)
@@ -250,7 +294,7 @@ namespace KF
                 }
         };
         std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0
-        BigNum RandBigNum(bool isneg=false,size_t IntSize=0ULL,size_t DecSize=0ULL); // 生成随机大数(整数位数 前面几个正负号 小数位数)
+        BigNum RandBigNum(std::pair<size_t,size_t> IntRand={0,0}, std::pair<size_t,size_t> DecRand={0,0}, int sign=0); // 生成随机大数(整数位数范围 小数位数范围 符号:0随机/1全正/2全负)
     }
     namespace KSON
     {
@@ -328,25 +372,6 @@ namespace KF
             std::size_t index;
             PathSeg(std::string Key);
             PathSeg(std::size_t Index);
-        };
-        /// @brief KSON 文档的根容器，持有整棵解析后的数据树，并提供解析方法
-        /// @attention 继承 std::enable_shared_from_this，允许成员函数内部调用 shared_from_this()
-        /// @note 当前 Document 的成员函数（parse/parse_file/root/ResolvePath/构造）尚未在
-        ///        KSON.cpp 中实现，属预留接口。现行解析路径走 NodePtr::Parse / read()，请勿调用。
-        class Document : public std::enable_shared_from_this<Document>
-        {
-            public:
-                static NodePtr parse(std::string_view text);//从 Document 中解析出一颗 KSON 树
-                static NodePtr parse_file(std::string_view filepath); // 从文件读取，后面和 parse() 一样
-                
-                Document();
-                NodePtr root();
-                const Node* ResolvePath(const std::vector<PathSeg>& path) const;
-                
-                Node RootNode; // 根节点
-                
-            private:
-                friend class NodePtr;
         };
         /// @brief KSON 树的指针，持有路径，提供访问方法
         class NodePtr
@@ -492,29 +517,36 @@ namespace KF
                         catch (...) { return false; }
                     };
                 }
-                else if constexpr (std::is_same_v<T, std::string>)
+                else if constexpr (std::is_same_v<T, std::string>)// 如果是字符串
                 {
                     return [&val](const std::string& t) -> bool { val = t; return true; };
                 }
-                else if constexpr (std::is_same_v<T, bool>)
+                else if constexpr (std::is_same_v<T, bool>) // 如果是布尔值
                 {
                     // 大小写不敏感；支持常见真/假写法
-                    return [&val](const std::string& t) -> bool {
+                    return [&val](const std::string& t) -> bool
+                    {
                         std::string low = t;
+                        const std::vector<std::string> trueStrs = {"1", "true", "yes", "y", "on","ture","t"};
+                        const std::vector<std::string> falseStrs = {"0", "false", "no", "n", "off","flase","f"};
                         for (auto& c : low) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                        if      (low == "1" || low == "true" || low == "yes" || low == "y" || low == "on") { val = true;  return true; }
-                        else if (low == "0" || low == "false" || low == "no" || low == "n" || low == "off") { val = false; return true; }
+                        if      (std::find(trueStrs.begin(), trueStrs.end(), low) != trueStrs.end()) { val = true;  return true; }
+                        else if (std::find(falseStrs.begin(), falseStrs.end(), low) != falseStrs.end()) { val = false; return true; }
                         return false;
                     };
                 }
                 else if constexpr (std::is_integral_v<T>)
                 {
                     // 严格整数：必须整个 token 都是整数，带小数点等视为非法
+                    // 对于无符号类型 (size_t, uint, unsigned int 等)，只接受正整数，否则返回 false 走整组重试
                     return [&val](const std::string& t) -> bool {
                         try {
                             std::size_t idx = 0;
                             const long long v = std::stoll(t, &idx);
                             if (idx != t.size()) return false; // 如 "3.14" 解析到 '.' 即停，判非法
+                            if constexpr (std::is_unsigned_v<T>) {
+                                if (v < 0) return false; // 非正整数，走整组重试
+                            }
                             val = static_cast<T>(v);
                             return true;
                         }

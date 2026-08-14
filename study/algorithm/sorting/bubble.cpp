@@ -6,7 +6,7 @@ using namespace KSON;
 using namespace KTIMER;
 size_t n;
 vector<BigNum> arr;
-void bubble_sort(vector<BigNum>& a, size_t rule)
+void BubbleSort(vector<BigNum>& a, size_t rule)
 {
     AddTimer("BUBBLE SORT",TimeUnit::us);
     for(size_t i = 0; i < a.size() - 1; i++)
@@ -22,10 +22,16 @@ void bubble_sort(vector<BigNum>& a, size_t rule)
         }
     }
     PrintTimer("BUBBLE SORT");
-    kout << "result :\n";
-    for(auto x : a)
-        koutW << x << "\n";
-    kout << endl;
+    bool out = true;
+    kout << "Output result?: ";
+    kin >> out;
+    if(out)
+    {
+        kout << "result :\n";
+        for(auto x : a)
+            koutW << x << "\n";
+        kout << endl;
+    }
 }
 int main()
 {
@@ -40,11 +46,16 @@ int main()
     kin >> isgen;
     if(isgen)
     {
-        size_t len;
-        kout << "length of random number: ";
-        kin >> len;
+        size_t iMin, iMax, dMin, dMax;
+        int sign;
+        kout << "integer digit range (min max): ";
+        kin >> iMin >> iMax;
+        kout << "decimal digit range (min max): ";
+        kin >> dMin >> dMax;
+        kout << "sign (0=random 1=positive 2=negative): ";
+        kin >> sign;
         for(size_t i = 0; i < n; i++)
-            arr.push_back(RandBigNum(false,len,10));
+            arr.push_back(RandBigNum({iMin,iMax},{dMin,dMax},sign));
     }
     else
     {
@@ -56,6 +67,7 @@ int main()
             arr.push_back(x);
         }
     }
-    bubble_sort(arr, rule);
+    BubbleSort(arr, rule);
+    kout << "Time Compelximity" << main["time_compelxity"];
     KEnd();
 }

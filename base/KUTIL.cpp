@@ -3,8 +3,8 @@
 /**
  * @file KUTIL.cpp
  * @brief 内部工具模块
- * @version 1.0.0
- * @date 2026-08-13
+ * @version 1.0.1
+ * @date 2026-08-14
  * @author Git-1145
  */
 
