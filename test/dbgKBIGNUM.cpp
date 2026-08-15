@@ -377,6 +377,59 @@ int main()
     GUARD_SECTION(bn, "mod", "mod") { RunBinary(bn["mod"], "mod"); }
     GUARD_SECTION(bn, "pow", "pow") { RunBinary(bn["pow"], "pow"); }
 
+    // ==================== 13. type() 类型描述（配置驱动） ====================
+    kout << "\n== 13. type() ==\n";
+    GUARD_SECTION(bn, "type", "type")
+    {
+        auto g = bn["type"];
+        size_t n = g["in"].size();
+        for(size_t i = 0; i < n; i++)
+        {
+            // 用 Auto()：引号字符串 "inf"/"-inf"/"nan" 会被 KSON 自动转为 BigNum 节点，
+            // Str() 会触发类型不匹配崩溃，Auto() 对字符串与 BigNum 节点均返回文本
+            std::string in = g["in"][i].Auto();
+            CHECK_CFG_STR(BigNum(in).type(), "BigNum(" + in + ").type()", g["E"][i].Auto(), "type", i);
+        }
+    }
+
+    // ==================== 14. Root 开根（配置驱动） ====================
+    kout << "\n== 14. Root 开根 ==\n";
+    GUARD_SECTION(bn, "root", "root")
+    {
+        auto g = bn["root"];
+        size_t n = g["A"].size();
+        for(size_t i = 0; i < n; i++)
+        {
+            std::string a = g["A"][i].Auto();
+            std::string b = g["B"][i].Auto();
+            std::string e = g["E"][i].Auto();
+            CHECK_CFG(Root(BigNum(a), BigNum(b)), "Root(" + a + ", " + b + ")", e, "root", i);
+        }
+    }
+
+    // ==================== 15. 与其他算术类型运算（重载） ====================
+    kout << "\n== 15. 与其他算术类型运算 ==\n";
+    // BigNum op 算术类型（右值）
+    CHECK_CFG(BigNum("5") + 3,      "5 + 3(int)",        "8",   "arith", 0);
+    CHECK_CFG(BigNum("5.5") - 2,    "5.5 - 2(int)",      "3.5", "arith", 1);
+    CHECK_CFG(BigNum("5") * 2.5,    "5 * 2.5(double)",   "12.5","arith", 2);
+    CHECK_CFG(BigNum("10") / 4,     "10 / 4(int)",       "2.5", "arith", 3);
+    CHECK_CFG(BigNum("-5") + 2,     "-5 + 2(int)",       "-3",  "arith", 4);
+    // 算术类型 op BigNum（右值反向）
+    CHECK_CFG(3 + BigNum("5"),      "3(int) + 5",        "8",   "arith", 5);
+    CHECK_CFG(10 - BigNum("3.5"),   "10(int) - 3.5",     "6.5", "arith", 6);
+    CHECK_CFG(2.5 * BigNum("4"),    "2.5(double) * 4",   "10",  "arith", 7);
+    CHECK_CFG(7 / BigNum("2"),      "7(int) / 2",        "3.5", "arith", 8);
+    // 变量形式
+    {
+        int i = 2; double d = 1.5; long L = 100; float f = 0.5f;
+        CHECK_CFG(BigNum("3") + i,   "3 + i(int=2)",      "5",   "arith", 9);
+        CHECK_CFG(d + BigNum("2.5"), "d(double=1.5)+2.5", "4",   "arith", 10);
+        CHECK_CFG(L - BigNum("99"),  "L(long=100)-99",    "1",   "arith", 11);
+        CHECK_CFG(BigNum("10") * f,  "10 * f(float=0.5)", "5",   "arith", 12);
+        CHECK_CFG(BigNum("100") / i, "100 / i(int=2)",    "50",  "arith", 13);
+    }
+
     // ==================== 结论 ====================
     kout << "\n----------------------------------------\n";
     kout << "  {green}[OK]{/} " << g_ok << " 项通过\n";
@@ -384,7 +437,6 @@ int main()
         kout << "\n{green}[ALL PASS] BigNum 配置驱动测试通过{/}\n";
     else
         kout << "\n{red}[" << g_fail << " FAIL] BigNum 配置驱动测试有失败项{/}\n";
-
     KEnd();
     return g_fail > 0 ? 1 : 0;
 }

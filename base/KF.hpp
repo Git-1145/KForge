@@ -202,6 +202,7 @@ namespace KF
 
         BigNum AbsDivSchool(const BigNum& a, const BigNum& b, size_t keep = 9); // 除法（朴素算法），保留 keep 位小数
         BigNum Pow(const BigNum& a, const BigNum& b); // 幂运算：a^b（快速幂，支持负指数/分数指数/inf-nan 规则）
+        BigNum Root(const BigNum& a, const BigNum& n); // n 次方根：a^(1/n)（默认平方根），保留 9 位小数
         class BigNum
         {
             public:
@@ -218,13 +219,18 @@ namespace KF
                 bool IsNan()    const { return state == State::Nan; }                             // 非数
                 bool IsNormal() const { return state == State::Normal; }                          // 普通数值
 
+                /// @brief 数值类型描述："nan" / "inf" / "-inf" / "int" / "dec"
+                std::string type() const;
+
                 static BigNum ToBig(const std::string& str); // 字符串转大数
                 std::string   ToStr() const; // 大数转字符串
 
                 /// @brief 构造 支持空 字符串 数字 特殊状态
                 BigNum() = default;
                 BigNum(const std::string& str);// 用字符串构造（inf/-inf/nan 大小写不敏感）
-                BigNum(const dlimb& num);// 用数字构造
+                /// @brief 用算术类型构造（int/long/double/float 等，自动正确处理负数/小数）
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                BigNum(const T& num) { *this = FromArith(num); }
                 explicit BigNum(State s); // 特殊状态构造（Inf / NegInf / Nan）
 
                 /// @brief 面向用户的运算
@@ -233,6 +239,26 @@ namespace KF
                 BigNum operator*(const BigNum& b) const;
                 BigNum operator/(const BigNum& b) const;
                 BigNum operator%(const BigNum& b) const;
+
+                /// @brief 与任意算术类型的运算（右值/变量均可，自动正确转换负数/小数）
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                BigNum operator+(const T& num) const { return *this + FromArith(num); }
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                BigNum operator-(const T& num) const { return *this - FromArith(num); }
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                BigNum operator*(const T& num) const { return *this * FromArith(num); }
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                BigNum operator/(const T& num) const { return *this / FromArith(num); }
+
+                /// @brief 反向运算：算术类型 op BigNum（如 5 + bn、3.5 * bn）
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                friend BigNum operator+(const T& a, const BigNum& b) { return b + a; }
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                friend BigNum operator-(const T& a, const BigNum& b) { return FromArith(a) - b; }
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                friend BigNum operator*(const T& a, const BigNum& b) { return b * a; }
+                template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+                friend BigNum operator/(const T& a, const BigNum& b) { return FromArith(a) / b; }
                 /// @brief 比较 (IEEE-754：NaN 与任何比较均返回 false)
                 bool operator==(const BigNum& b) const
                 {
@@ -291,6 +317,21 @@ namespace KF
                     if (!(is >> token)) return is;
                     b = BigNum(token);
                     return is;
+                }
+
+            private:
+                /// @brief 算术类型 → BigNum（字符串转换，正确处理负数/小数）
+                template<typename T>
+                static BigNum FromArith(T v)
+                {
+                    if constexpr (std::is_integral_v<T>)
+                        return BigNum(std::to_string(v));
+                    else
+                    {
+                        std::ostringstream oss;
+                        oss << std::setprecision(std::numeric_limits<T>::max_digits10) << v;
+                        return BigNum(oss.str());
+                    }
                 }
         };
         std::string Normalize(const std::string& str); //合法化 包括但不限于去小数点 去前后导0

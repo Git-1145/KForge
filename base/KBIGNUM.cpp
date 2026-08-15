@@ -2,8 +2,8 @@
 /**
  * @file KBIGNUM.cpp
  * @brief 大数模块
- * @version 1.1.0
- * @date 2026-08-14
+ * @version 1.2.0
+ * @date 2026-08-15
  * @author Git-1145
 **/
 namespace KF
@@ -15,7 +15,7 @@ namespace KF
         constexpr char CHAR_NEG = '-';    // 负号常量
         constexpr char CHAR_POS = '+';    // 正号常量
         constexpr char CHAR_DOT = '.';    // 小数点常量
-        constexpr size_t PRECISION = 9;
+        constexpr size_t KEEP = 9;
         constexpr int64_t BASE = 1000000000ULL;  // 基数，用于大数存储
         constexpr int64_t BASEEXP = 9;    // 基数的指数，表示每个limb存储的位数
         constexpr size_t THRESHOLD_SCHOOL_LIMBS = 48;  // 使用朴素乘法的阈值
@@ -50,14 +50,6 @@ namespace KF
             isneg = (s == State::NegInf);
             scale = 0;
         }
-        /**
-         * @brief 构造函数：从64位整数构造大数
-         * @param num 64位整数
-         */
-        BigNum::BigNum(const dlimb& num)
-        {
-            *this = ToBig(std::to_string(num));
-        }
         /// @brief  生成随机大数(整数位数范围 小数位数范围 符号:0随机/1全正/2全负)
         BigNum RandBigNum(std::pair<size_t,size_t> IntRand, std::pair<size_t,size_t> DecRand, int sign)
         {
@@ -77,7 +69,7 @@ namespace KF
 
             //整数小数长度都为0，直接返回0
             if (IntSize == 0 && DecSize == 0)
-                return BigNum("0");
+                return 0;
 
             BigNum res;
             res.limbs.clear();
@@ -275,7 +267,19 @@ namespace KF
             }
             return result;
         }
-        
+        /// @brief 数值类型描述："nan" / "inf" / "-inf" / "int" / "dec"
+        std::string BigNum::type() const
+        {
+            switch (state)
+            {
+                case State::Nan:    return "nan";
+                case State::Inf:    return "inf";
+                case State::NegInf: return "-inf";
+                case State::Normal: break;
+            }
+            return (scale == 0) ? "int" : "dec";
+        }
+
         /// @brief 对齐小数位 把x 变成 Newscale 位的
         BigNum ScaleTo(const BigNum& x, size_t NewScale)
         {
@@ -460,7 +464,6 @@ namespace KF
         /// @brief 除法（朴素算法）：abs(a) / abs(b)，保留 keep 位小数（默认 9 位）
         /// @param a 被除数 / b 除数（仅用 limbs，忽略符号）
         /// @param keep 保留的小数位数，0 表示只取整数部分
-        /// @return 商（limbs，scale=a.scale+keep，isneg=false）
         BigNum AbsDivSchool(const BigNum& a,const BigNum& b, size_t keep)
         {
             BigNum t; t.limbs = a.limbs; t.scale = 0; t.isneg = false;
@@ -565,7 +568,7 @@ namespace KF
             {
                 const size_t smax = (std::max)(scale, b.scale);
                 const slimb c = AbsCmp(ScaleTo(*this, smax), ScaleTo(b, smax));
-                if(c == 0) return BigNum("0");
+                if(c == 0) return 0;
                 if(c > 0) { res = AbsSub(*this, b); res.isneg = isneg; }
                 else      { res = AbsSub(b, *this); res.isneg = b.isneg; }
             }
@@ -595,7 +598,7 @@ namespace KF
             {
                 const size_t smax = (std::max)(scale, b.scale);
                 const slimb c = AbsCmp(ScaleTo(*this, smax), ScaleTo(b, smax));
-                if(c == 0) return BigNum("0");
+                if(c == 0) return 0;
                 if(c > 0) { res = AbsSub(*this, b); res.isneg = isneg; }
                 else      { res = AbsSub(b, *this); res.isneg = !isneg; }
             }
@@ -634,7 +637,7 @@ namespace KF
                 const bool aNeg = (state == State::NegInf) || (state == State::Normal && isneg);
                 const bool bNeg = (b.state == State::NegInf) || (b.state == State::Normal && b.isneg);
                 if(IsInf()) return BigNum((aNeg ^ bNeg) ? State::NegInf : State::Inf);
-                return BigNum("0"); // 有限 / 无穷 = 0（忽略符号，避免 -0）
+                return 0; // 有限 / 无穷 = 0（忽略符号，避免 -0）
             }
             // 以下均为 Normal
             const bool bZero = b.limbs.size() == 1 && b.limbs[0] == 0;
@@ -645,7 +648,7 @@ namespace KF
                 if(aZero) return BigNum(State::Nan);
                 return BigNum(isneg ^ b.isneg ? State::NegInf : State::Inf);
             }
-            if(limbs.size() == 1 && limbs[0] == 0) return BigNum("0"); // 0 / x = 0
+            if(limbs.size() == 1 && limbs[0] == 0) return 0; // 0 / x = 0
             BigNum res = AbsDiv(*this, b); // 自动检测：整除则整数，否则保留 9 位小数
             res.isneg = isneg ^ b.isneg;
             return res;
@@ -656,35 +659,37 @@ namespace KF
             if(state == State::Nan || b.state == State::Nan) return BigNum(State::Nan);
             if(IsInf() || b.IsInf()) return BigNum(State::Nan);
             const bool bZero = b.limbs.size() == 1 && b.limbs[0] == 0;
-            if(bZero) { KLOG_ERROR(KBIGNUM_DIVBYZERO, "modulo by zero"); return BigNum(State::Nan); }
-            if(limbs.size() == 1 && limbs[0] == 0) return BigNum("0"); // 0 % x = 0
+            if(bZero) { KLOG_ERROR(KBIGNUM_DIVBYZERO, "module by zero"); return BigNum(State::Nan); }
+            if(limbs.size() == 1 && limbs[0] == 0) return 0; // 0 % x = 0
             BigNum r = AbsMod(*this, b); // abs(a) mod abs(b)（对齐小数位后做整数取余）
-            r.isneg = isneg; // 余数符号跟随被除数（C++ 惯例）
+            r.isneg = isneg;
             return r;
         }
+        /// @brief 非负整数最大公约数（欧几里得，供分数约分用；定义见下方）
+        BigNum BigGcd(BigNum a, BigNum b);
+
         /**
          * @brief 幂运算：a^b（支持负指数、整数快速幂、分数指数开方、inf/nan 规则）
          * @note  整数指数：二进制快速幂（精确，全程 BigNum 运算）
          * @note  负指数：a^(-n) = 1 / a^n（保留 9 位小数）
          * @note  分数指数：用 double 近似计算并四舍五入到 9 位小数
-         * @note  inf/nan：按 IEEE-754 惯例
          */
         BigNum Pow(const BigNum& a, const BigNum& b)
         {
-            // 底数或指数为 NaN → NaN（|底数|==1 时恒为 1，IEEE-754 惯例）
+            // 底数或指数为 NaN → NaN（|底数|==1 时恒为 1）
             if (b.IsNan())
             {
                 BigNum absA = a; absA.isneg = false;
-                return (absA == BigNum("1")) ? BigNum("1") : BigNum(BigNum::State::Nan);
+                return (absA == 1) ? 1 : BigNum(BigNum::State::Nan);
             }
             if (a.IsNan()) return BigNum(BigNum::State::Nan);
 
             // 底数为 ±inf
             if (a.IsInf())
             {
-                if (b == BigNum("0")) return BigNum("1");               // inf^0 = 1
-                if (b.IsInf()) return b.state == BigNum::State::Inf ? BigNum(BigNum::State::Inf) : BigNum("0"); // inf^±inf
-                if (b.isneg) return BigNum("0");                        // inf^负 = 0
+                if (b == 0) return 1;               // inf^0 = 1
+                if (b.IsInf()) return b.state == BigNum::State::Inf ? BigNum(BigNum::State::Inf) : 0; // inf^±inf
+                if (b.isneg) return 0;                        // inf^负 = 0
                 const bool intExp = b.IsNormal() && b.scale == 0;
                 if (a.state == BigNum::State::Inf) return BigNum(BigNum::State::Inf);   // +inf^正 = +inf
                 // -inf^正：整数奇数次 → -inf，整数偶数次 → +inf，非整数 → NaN
@@ -700,54 +705,144 @@ namespace KF
             if (b.IsInf())
             {
                 BigNum absA = a; absA.isneg = false;
-                const bool gt1 = (absA > BigNum("1"));
-                const bool lt1 = (absA < BigNum("1"));
-                if (!gt1 && !lt1) return BigNum("1");                   // |a| == 1 → 1
-                if (b.state == BigNum::State::Inf) return gt1 ? BigNum(BigNum::State::Inf) : BigNum("0"); // a^+inf
-                return gt1 ? BigNum("0") : BigNum(BigNum::State::Inf);          // a^-inf
+                const bool gt1 = (absA > 1);
+                const bool lt1 = (absA < 1);
+                if (!gt1 && !lt1) return 1;                   // |a| == 1 → 1
+                if (b.state == BigNum::State::Inf) return gt1 ? BigNum(BigNum::State::Inf) : 0; // a^+inf
+                return gt1 ? 0 : BigNum(BigNum::State::Inf);          // a^-inf
             }
 
             // 底数为 0
             if (a.limbs.size() == 1 && a.limbs[0] == 0)
             {
-                if (b == BigNum("0")) return BigNum("1");               // 0^0 = 1
-                return b.isneg ? BigNum(BigNum::State::Inf) : BigNum("0");      // 0^负 = inf；0^正 = 0
+                if (b == 0) return 1;               // 0^0 = 1
+                return b.isneg ? BigNum(BigNum::State::Inf) : 0;      // 0^负 = inf；0^正 = 0
             }
 
-            // 负底数 + 非整数指数 → NaN（实数域无意义）
-            const bool intExp = b.scale == 0;
-            if (a.isneg && !intExp) return BigNum(BigNum::State::Nan);
-
             // 负指数：a^(-n) = 1 / a^n（保留 9 位小数）
+            const bool intExp = b.scale == 0;
             if (b.isneg)
             {
                 BigNum pos(b); pos.isneg = false;
-                return BigNum("1") / Pow(a, pos);
+                return 1 / Pow(a, pos);
             }
 
             // ============ 整数指数：二进制快速幂（精确） ============
             if (intExp)
             {
-                BigNum result("1");
+                BigNum result(1);
                 BigNum base = a;
                 BigNum exp = b;
-                while (exp != BigNum("0"))
+                while (exp != 0)
                 {
-                    if (exp % BigNum("2") == BigNum("1")) // 指数最低位为 1
+                    if (exp % 2 == 1) // 指数最低位为 1
                         result = result * base;
                     base = base * base;                   // 底数平方
-                    exp = AbsDivSchool(exp, BigNum("2"), 0); // 指数右移 1 位（整除）
+                    exp = AbsDivSchool(exp, 2, 0); // 指数右移 1 位（整除）
                 }
                 return result;
             }
 
-            // ============ 分数指数：double 近似（四舍五入到 9 位小数） ============
-            const double baseD = std::stod(a.ToStr());
-            const double expD  = std::stod(b.ToStr());
-            const double d = std::pow(baseD, expD);
-            std::ostringstream oss;
-            oss << std::fixed << std::setprecision(PRECISION) << d;
-            return BigNum(oss.str());
+            // ============ 分数指数：b = p/q（约分）→ a^b = (a^(1/q))^p ============
+            // 用 Root 开根实现（a 为负时若 q 为偶数，Root 返回 NaN，符合实数域）
+            BigNum p = b; p.scale = 0; p.isneg = false;               // 分子（去掉小数点）
+            std::string qs = std::string("1") + std::string(b.scale, '0');
+            BigNum q(qs);                                             // 分母 = 10^scale
+            const BigNum g = BigGcd(p, q);
+            if (g != 1) { p = p / g; q = q / g; }           // 约分
+            return Pow(Root(a, q), p);
+        }
+
+        /// @brief 非负整数最大公约数（欧几里得，供分数约分用）
+        BigNum BigGcd(BigNum a, BigNum b)
+        {
+            a.isneg = b.isneg = false;
+            a.scale = b.scale = 0;
+            a.state = b.state = BigNum::State::Normal;
+            while (b != 0)
+            {
+                BigNum r = a % b;   // 整数取模（a >= 0）
+                r.isneg = false;    // 余数符号不参与
+                a = b; b = r;
+            }
+            return a;
+        }
+
+        /**
+         * @brief 开根：a^(1/n)（n 次方根），保留 9 位小数
+         * @param a 被开方数
+         * @param n 根指数（n==0 → NaN；负数 → 取倒数；整数 → 牛顿迭代精确；非整数 → 近似）
+         */
+        BigNum Root(const BigNum& a, const BigNum& n)
+        {
+            // 0 次方根无定义
+            if (n.IsNormal() && n.limbs.size() == 1 && n.limbs[0] == 0)
+                return BigNum(BigNum::State::Nan);
+            // NaN 参与 → NaN
+            if (a.IsNan() || n.IsNan())
+                return BigNum(BigNum::State::Nan);
+
+            // 负指数：a^(1/n)
+            if (n.isneg)
+            {
+                BigNum pos = n; pos.isneg = false;
+                return 1 / Root(a, pos);
+            }
+            // 底数 ±inf
+            if (a.state == BigNum::State::Inf)
+                return BigNum(BigNum::State::Inf);
+            if (a.state == BigNum::State::NegInf)
+            {
+                // 奇数次根 → -inf；偶数或非整数根 → NaN
+                if (n.IsNormal() && n.scale == 0 && n.limbs[0] % 2 == 1)
+                    return BigNum(BigNum::State::NegInf);
+                return BigNum(BigNum::State::Nan);
+            }
+
+            // 底数 0：0^(1/n) = 0（n > 0 已保证）
+            if (a.limbs.size() == 1 && a.limbs[0] == 0)
+                return 0;
+
+            // 非整数根指数：按 Pow 近似(a^(1/n),1/n 转 9 位小数)
+            if (!(n.IsNormal() && n.scale == 0))
+                return Pow(a, 1 / n);
+
+            // 负底数：仅整数奇数次根有实数结果
+            if (a.isneg)
+            {
+                if (n.limbs[0] % 2 == 0) return BigNum(BigNum::State::Nan);
+                BigNum absA = a; absA.isneg = false;
+                BigNum r = Root(absA, n);
+                r.isneg = true;
+                return r;
+            }
+
+            // ============ 正数 + 整数 n：定点二分查找 ============
+            const long long nll = std::stoll(n.ToStr());   // 整数根指数
+            const size_t DEC = KEEP + 1;                          // 中间多算 1 位，用于舍入到 9 位
+            const size_t m = static_cast<size_t>(nll) * DEC;
+            BigNum A = ScaleTo(a, m); A.scale = 0;          // A = a * 10^(n*10)（整数化）
+
+            // 二分查找最大 X 满足 X^n <= A，其中 X = floor(a^(1/n) * 10^10)
+            const size_t digits = A.ToStr().size();
+            const BigNum N(nll);
+            BigNum low(0);                                 // 恒有 lo^n <= A
+            BigNum high(std::string("1") +                   // 上界：10^(ceil(digits/n)+1)，恒有 hi^n > A
+                      std::string((digits + static_cast<size_t>(nll))
+                                  / static_cast<size_t>(nll) + 1, '0'));
+            while (low + 1 < high)
+            {
+                BigNum mid = AbsDivSchool(low + high, 2, 0); // floor((lo+hi)/2)
+                if (Pow(mid, N) <= A) low = mid;
+                else                  high = mid;
+            }
+            const BigNum X = low; // floor(a^(1/n) * 10^10)
+
+            // 舍入到 9 位：round(X/10)（X = floor(a^(1/n) * 10^10)）
+            BigNum Xr = AbsDivSchool(X + 5, 10, 0);
+            Xr.scale = KEEP;               // 结果 = Xr / 10^9
+            Xr.isneg = false;
+            return Xr;
         }
     }
 }

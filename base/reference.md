@@ -383,7 +383,7 @@ base = 10⁹，每个 `limb`（`uint32_t`）存储 9 位十进制数字。选择
 | `a < 0` 且 `b` 非整数 | `nan`（实数域无意义） |
 | `b < 0`（其余） | `1 / a^|b|`（保留 9 位小数） |
 | `b` 为整数（其余） | 二进制快速幂，精确 |
-| `b` 为分数（其余） | `double` 近似，四舍五入到 9 位小数 |
+| `b` 为分数（其余） | 约分后经 `Root` 开根：`a^(p/q) = (a^(1/q))^p`，保留 9 位小数 |
 
 ### Normalize 字符串合法化
 
@@ -417,7 +417,7 @@ std::string ToStr() const;                     // BigNum → 字符串
 |------|------|
 | `BigNum()` | 默认构造，零值 |
 | `BigNum(const string& str)` | 字符串构造（inf/-inf/nan 大小写不敏感；否则 Normalize → ToBig） |
-| `BigNum(const dlimb& num)` | 数字构造（to_string → ToBig） |
+| `BigNum(算术类型)` 模板 | 任意算术类型（int/long/unsigned/double/float 等）构造，自动正确处理负数/小数（经字符串转换） |
 | `BigNum(State s)` | 特殊状态构造（`State::Inf` / `NegInf` / `Nan`） |
 
 ### 运算接口
@@ -428,7 +428,10 @@ std::string ToStr() const;                     // BigNum → 字符串
 | 绝对值运算 | `AbsMul` `AbsDiv` | 已实现（`AbsDiv` 自动检测：a、b 均为整数且能整除 → 整数，否则保留 9 位小数） |
 | 绝对值运算 | `AbsMod` | 已实现（对齐小数位后做整数取余，余数非负） |
 | 用户运算符 | `operator+ - * / %` | 已实现（含 inf/nan 状态传播） |
-| 用户运算符 | `Pow` | 已实现（整数指数快速幂，负指数 a^{-n}=1/a^n，分数指数 double 近似，inf/nan 规则） |
+| 用户运算符 | `Pow` | 已实现（整数指数快速幂，负指数 a^{-n}=1/a^n，分数指数经 Root 开根，inf/nan 规则） |
+| 开根 | `Root` | 已实现（n 次方根 a^(1/n)，保留 9 位小数；负指数取倒数；偶数次根开负数 → nan） |
+| 类型查询 | `type()` | 已实现（返回 `"nan"`/`"inf"`/`"-inf"`/`"int"`/`"dec"`） |
+| 算术类型混合 | `operator+ - * /` 模板 | 已实现（BigNum 可与所有算术类型 int/long/float/double 等的右值和变量互算，含反向 `5 + bn`、`2.5 * bn`） |
 | 比较运算符 | `operator< == != <= > >=` | 已实现（IEEE-754：NaN 参与比较恒为 false） |
 | 输出 | `friend operator<<` | 调用 `ToStr`（inf → `"inf"`，nan → `"nan"`） |
 
@@ -524,9 +527,8 @@ kout << color << std::endl;                     // 输出带颜色标签的多�
 
 | 脚本/文件 | 位置 | 用途 |
 |-----------|------|------|
-| `init_build.bat` | 根目录 | 预编译 `base/KF.lib` + 在 `study/` 下含 .cpp 的目录生成 `build.bat` / `fast_build.bat` |
+| `init_build.bat` | 根目录 | 预编译 `base/KF.lib` + 在 `study/` 下含 .cpp 的目录生成 `build.bat` |
 | `build.bat` | study/ 子目录 | 由 init_build 生成，美观 CLI 选择文件编译 |
-| `fast_build.bat` | study/ 子目录 | 由 init_build 生成，自动编译全部文件 |
 | `cancel_init.bat` | 根目录 | 清理所有构建产物（KF.lib、obj、Release/、生成的 bat） |
 | `CMakeLists.txt` | 根目录 | 可选，供 IDE / CI 使用（实际编译用 build.bat） |
 
@@ -536,14 +538,13 @@ kout << color << std::endl;                     // 输出带颜色标签的多�
 1. 设置 MSVC 环境
 2. 增量预编译 `base/*.cpp` → `base/obj/*.obj` → `base/KF.lib`
 3. 扫描 `study/` 下所有含 .cpp 的子目录
-4. 每个目录生成 `build.bat` + `fast_build.bat`
+4. 每个目录生成 `build.bat`
 
-### build.bat / fast_build.bat
+### build.bat
 
 每个脚本自包含，直接调用 `cl.exe` + `link.exe`，不依赖 CMake：
 
 - **build.bat**：显示文件列表，输入编号选择（如 `1 3`），Enter 编译全部。每次运行前保留 `Release/`
-- **fast_build.bat**：自动编译全部文件，每次运行前清空 `Release/`
 - 编译产物（exe）输出到同目录的 `Release/` 文件夹
 
 ### 编译要求
