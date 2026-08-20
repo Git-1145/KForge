@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KForge 迷宫生成器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+  header { background: #16213e; padding: 20px; text-align: center; border-bottom: 2px solid #0f3460; }
+  header h1 { font-size: 24px; color: #00d4ff; }
+  header p { font-size: 13px; color: #888; margin-top: 4px; }
+  .container { display: flex; gap: 24px; padding: 24px; flex: 1; flex-wrap: wrap; }
+  .panel { background: #16213e; border-radius: 10px; padding: 20px; }
+  .controls { flex: 0 0 280px; display: flex; flex-direction: column; gap: 14px; height: fit-content; }
+  .controls label { font-size: 13px; color: #aaa; display: flex; justify-content: space-between; align-items: center; }
+  .controls input[type="number"] { width: 60px; padding: 4px 8px; background: #0f3460; border: 1px solid #1a4a8a; color: #e0e0e0; border-radius: 4px; text-align: center; font-size: 14px; }
+  .controls input[type="range"] { flex: 1; margin: 0 10px; accent-color: #00d4ff; }
+  .controls button { padding: 10px; background: #0f3460; border: 1px solid #1a4a8a; color: #00d4ff; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600; transition: all .2s; }
+  .controls button:hover { background: #1a4a8a; }
+  .controls .seed-row { display: flex; gap: 8px; }
+  .controls .seed-row input { flex: 1; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px; background: #0f3460; border-radius: 6px; }
+  .legend-item { font-size: 14px; font-family: 'Courier New', monospace; display: flex; align-items: center; gap: 4px; }
+  .legend-item .swatch { width: 20px; text-align: center; font-weight: bold; }
+  .output-area { flex: 1; min-width: 300px; }
+  .maze-display { font-family: 'Courier New', monospace; font-size: 18px; line-height: 1.4; letter-spacing: 2px; background: #0d1117; padding: 20px; border-radius: 8px; min-height: 200px; white-space: pre; overflow-x: auto; }
+  .kson-output { margin-top: 12px; }
+  .kson-output textarea { width: 100%; height: 100px; background: #0d1117; color: #8b949e; border: 1px solid #1a4a8a; border-radius: 6px; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; resize: vertical; }
+  .kson-output label { font-size: 12px; color: #888; margin-bottom: 4px; display: block; }
+  .stats { font-size: 12px; color: #888; text-align: center; }
+  .speed-label { font-size: 12px; color: #666; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; }
+  .checkbox-row input[type="checkbox"] { accent-color: #00d4ff; }
+  .checkbox-row label { font-size: 13px; color: #aaa; }
+  @media (max-width: 700px) { .controls { flex: 1 1 100%; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>KForge 迷宫生成器</h1>
+  <p>随机迷宫 · 递归回溯算法 · 输出 KSON 格式</p>
+</header>
+<div class="container">
+  <div class="panel controls">
+    <label>行数 <input type="number" id="rows" value="15" min="3" max="51"></label>
+    <label>列数 <input type="number" id="cols" value="15" min="3" max="51"></label>
+    <label>密度 <input type="range" id="density" min="0" max="100" value="40"> <span id="densityVal">40%</span></label>
+    <div class="seed-row">
+      <input type="number" id="seed" placeholder="随机种子(留空自动)">
+      <button onclick="generate()">生成</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label style="font-size:13px;color:#aaa;display:flex;align-items:center;gap:4px">起点
+        <input type="number" id="startR" value="0" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">行
+        <input type="number" id="startC" value="0" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">列
+      </label>
+      <label style="font-size:13px;color:#aaa;display:flex;align-items:center;gap:4px">终点
+        <input type="number" id="endR" value="14" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">行
+        <input type="number" id="endC" value="14" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">列
+      </label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="autoGen" checked onchange="if(this.checked)generate()">
+      <label for="autoGen">自动生成</label>
+    </div>
+    <div style="display:flex;gap:8px">
+	      <button onclick="copyKSON(this)" style="flex:1;padding:8px;background:#0f3460;border:1px solid #1a4a8a;color:#00d4ff;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;transition:all .2s">复制 KSON</button>
+	      <button onclick="copyMatrix(this)" style="flex:1;padding:8px;background:#0f3460;border:1px solid #1a4a8a;color:#00d4ff;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;transition:all .2s">复制矩阵</button>
+	    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="swatch" style="color:#ff5555">W</span> 墙</div>
+      <div class="legend-item"><span class="swatch" style="color:#e0e0e0">P</span> 通路</div>
+      <div class="legend-item"><span class="swatch" style="color:#50fa7b">S</span> 起点</div>
+      <div class="legend-item"><span class="swatch" style="color:#8be9fd">E</span> 终点</div>
+    </div>
+    <div class="stats" id="stats">——</div>
+  </div>
+  <div class="panel output-area">
+    <div class="maze-display" id="mazeDisplay"></div>
+    <div class="kson-output">
+      <label>KSON 输出（可直接用于 cfg.kson）</label>
+      <textarea id="ksonOutput" readonly></textarea>
+    </div>
+  </div>
+</div>
+<script>
+function rand(seed) {
+  return function() {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
+
+let rng = Math.random;
+let curRows = 0, curCols = 0;
+let lastGrid = null;
+
+function pick(arr) { return arr[Math.floor(rng() * arr.length)]; }
+
+function generate() {
+  const rows = Math.max(3, Math.min(51, parseInt(document.getElementById('rows').value) || 15));
+  const cols = Math.max(3, Math.min(51, parseInt(document.getElementById('cols').value) || 15));
+  document.getElementById('rows').value = rows;
+  document.getElementById('cols').value = cols;
+
+  let seedInput = document.getElementById('seed').value;
+  if (seedInput.trim()) {
+    rng = rand(parseInt(seedInput) || 1);
+  } else {
+    rng = Math.random;
+  }
+
+  const density = parseInt(document.getElementById('density').value) / 100;
+
+  // 内部增加边框，生成后再去掉
+  let intRows = rows + 2, intCols = cols + 2;
+  let grid = Array.from({ length: intRows }, () => Array(intCols).fill('W'));
+
+  // 递归回溯生成迷宫通道
+  function carve(r, c) {
+    grid[r][c] = 'P';
+    const dirs = [[0,2],[0,-2],[2,0],[-2,0]];
+    for (let i = dirs.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+    }
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr > 0 && nr < intRows - 1 && nc > 0 && nc < intCols - 1 && grid[nr][nc] === 'W') {
+        grid[r + dr / 2][c + dc / 2] = 'P';
+        carve(nr, nc);
+      }
+    }
+  }
+
+  // 从(1,1)开始挖
+  carve(1, 1);
+
+  // 根据密度额外挖墙（内部区域）
+  for (let r = 1; r < intRows - 1; r++) {
+    for (let c = 1; c < intCols - 1; c++) {
+      if (grid[r][c] === 'W' && rng() < density) {
+        grid[r][c] = 'P';
+      }
+    }
+  }
+
+  // 去掉边框
+  let inner = [];
+  for (let r = 1; r <= rows; r++) {
+    let row = '';
+    for (let c = 1; c <= cols; c++) {
+      row += grid[r][c];
+    }
+    inner.push(row.split(''));
+  }
+
+  // 设置起点和终点（用户指定位置）
+  let startR = parseInt(document.getElementById('startR').value) || 0;
+  let startC = parseInt(document.getElementById('startC').value) || 0;
+  let endR = parseInt(document.getElementById('endR').value) || 0;
+  let endC = parseInt(document.getElementById('endC').value) || 0;
+  startR = Math.min(startR, rows - 1);
+  startC = Math.min(startC, cols - 1);
+  endR = Math.min(endR, rows - 1);
+  endC = Math.min(endC, cols - 1);
+  document.getElementById('startR').value = startR;
+  document.getElementById('startC').value = startC;
+  document.getElementById('endR').value = endR;
+  document.getElementById('endC').value = endC;
+  // 确保起点终点位置是通路
+  if (inner[startR][startC] === 'W') inner[startR][startC] = 'P';
+  if (inner[endR][endC] === 'W') inner[endR][endC] = 'P';
+  inner[startR][startC] = 'S';
+  inner[endR][endC] = 'E';
+
+  curRows = rows; curCols = cols;
+  lastGrid = inner;
+
+  // 渲染
+  render(inner);
+
+  // 生成 KSON
+  let kson = '"maze":\n{\n    "maze_' + rows + 'x' + cols + '":\n    [\n';
+  for (let r = 0; r < rows; r++) {
+    let line = '';
+    for (let c = 0; c < cols; c++) line += inner[r][c];
+    kson += '        ["' + line + '"]' + (r < rows - 1 ? ',' : '') + '\n';
+  }
+  kson += '    ]\n}';
+  document.getElementById('ksonOutput').value = kson;
+
+  // 统计
+  let counts = { W: 0, P: 0, S: 0, E: 0 };
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      counts[inner[r][c]]++;
+  document.getElementById('stats').textContent =
+    rows + '×' + cols + '  |  W=' + counts.W + '  P=' + counts.P + '  S=' + counts.S + '  E=' + counts.E;
+}
+
+function copyKSON(btn) {
+  const ta = document.getElementById('ksonOutput');
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '已复制!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+function copyMatrix(btn) {
+  if (!lastGrid) return;
+  let text = '';
+  for (let r = 0; r < lastGrid.length; r++) {
+    text += lastGrid[r].join('') + '\n';
+  }
+  navigator.clipboard.writeText(text.trim()).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '已复制!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+function render(grid) {
+  const display = document.getElementById('mazeDisplay');
+  const colors = { W: '#666666', P: '#cccccc', S: '#50fa7b', E: '#8be9fd' };
+  let html = '';
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[0].length; c++) {
+      const ch = grid[r][c];
+      html += '<span style="color:' + (colors[ch] || '#e0e0e0') + '">' + ch + '</span>';
+    }
+    html += '\n';
+  }
+  display.innerHTML = html;
+}
+
+// 输入变化时自动生成
+['rows', 'cols', 'density', 'seed'].forEach(id => {
+  document.getElementById(id).addEventListener('input', function() {
+    document.getElementById('densityVal').textContent = document.getElementById('density').value + '%';
+    if (document.getElementById('autoGen').checked) generate();
+  });
+});
+
+generate();
+</script>
+</body>
+</html>

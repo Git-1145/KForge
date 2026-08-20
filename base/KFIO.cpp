@@ -137,5 +137,37 @@ namespace KF
             return filtered;
         }
 
+        /// @brief 从 KSON 文件读取迷宫
+        std::vector<std::vector<MazeCell>> ReadMaze(
+            std::string_view filepath,
+            std::string_view maze_key)
+        {
+            // 读取并解析 KSON
+            std::string raw = ReadFileRaw(filepath);
+            KSON::kson doc = KSON::read(KSON::Preprocess(raw));
+            KSON::kson mazeArr = doc["maze"][maze_key];
+            size_t rows = mazeArr.Size();
+
+            std::vector<std::vector<MazeCell>> grid;
+            grid.reserve(rows);
+
+            for (size_t r = 0; r < rows; r++)
+            {
+                std::string rowStr = mazeArr[r][size_t(0)].Str();
+                std::vector<MazeCell> row;
+                row.reserve(rowStr.size());
+
+                for (char c : rowStr)
+                {
+                    if      (c == MAZE_WALL)  row.push_back(MazeCell::WALL);
+                    else if (c == MAZE_PATH)  row.push_back(MazeCell::PASSABLE);
+                    else if (c == MAZE_START) row.push_back(MazeCell::START);
+                    else if (c == MAZE_END)   row.push_back(MazeCell::END);
+                    else                 row.push_back(MazeCell::PASSABLE); // 未知字符视为通路
+                }
+                grid.push_back(std::move(row));
+            }
+            return grid;
         }
+    }
 }

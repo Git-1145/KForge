@@ -178,6 +178,8 @@ namespace KF
             constexpr const char* LightYellow = "\033[93m"; // 亮黄色
             constexpr const char* Orange  = "\033[38;5;208m"; // 256 色橙
             constexpr const char* SkyBlue = "\033[38;5;75m";  // 256 色天蓝
+            constexpr const char* Gray    = "\033[90m"; // 深灰色
+            constexpr const char* LightGray = "\033[38;5;250m"; // 浅灰色
             constexpr const char* Bold    = "\033[1m";
         }
     }
@@ -465,9 +467,35 @@ namespace KF
         kson read(std::string_view processed);
         kson ReadKsonFile(std::string_view filename);
     }
+    /////////////////////////////////////////////////////////
+    // MazeCell 枚举 + 迷宫字符常量（共享于 KFIO / KCLI）
+    /////////////////////////////////////////////////////////
+    enum MazeCell
+    {
+        WALL,      // 墙
+        PASSABLE,  // 可通行
+        VISITED,   // 已访问
+        START,     // 起点
+        END,       // 终点
+        PATH       // 最终路径
+    };
+    constexpr char MAZE_WALL  = 'W';   // 墙字符
+    constexpr char MAZE_PATH  = 'P';   // 通路字符
+    constexpr char MAZE_START = 'S';   // 起点字符
+    constexpr char MAZE_END   = 'E';   // 终点字符
+
     namespace KFIO
     {
         std::string ReadFileRaw(std::string_view filepath);// 读取文件(粗文本 没有任何处理)
+
+        /// @brief 从 KSON 文件读取迷宫
+        /// @param filepath  KSON 文件路径
+        /// @param maze_key  迷宫键名（对应 maze.kson 中的 "small" 等）
+        /// @return 二维 MazeCell 网格
+        std::vector<std::vector<MazeCell>> ReadMaze(
+            std::string_view filepath,
+            std::string_view maze_key = "small"
+        );
     }
     namespace KCLI
     {
@@ -688,10 +716,13 @@ namespace KF
         std::size_t KOptions(const KSON::kson& menu);
 
         /// @brief 暂停：显示"按任意键继续..."并等待按键
-        void kpause();
+        void KPause();
 
         /// @brief 结束：暂停后退出程序（exit(0)）
         void KEnd();
+        ////////////////////////////////////////杂函数/////////////////////////
+
+        void PrintMaze(const std::vector<std::vector<MazeCell>>& maze);
     }
     namespace KTIMER
     {

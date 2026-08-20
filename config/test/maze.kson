@@ -1,0 +1,19 @@
+"maze":
+{
+    "small":
+    [
+        ["SPPWPPPPPPPWP"],
+        ["WWPWWWPWWWPWP"],
+        ["PWPPPWPWPPPWP"],
+        ["PWWWPWPWWWPWP"],
+        ["PPPWPWPPPWPPP"],
+        ["PWWWPWWWPWWWW"],
+        ["PPPWPPPWPPPPP"],
+        ["PWPWWWPWPWWWP"],
+        ["PWPPPPPWPWPPP"],
+        ["PWWWWWWWWWPWP"],
+        ["PWPPPPPPPWPWP"],
+        ["PWPWWWWWPWPWP"],
+        ["PPPWPPPPPPPWE"]
+    ]
+}

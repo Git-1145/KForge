@@ -154,7 +154,7 @@ int main()
     SECTION("10. kpause 暂停");
     {
         kout << "  测试 kpause() 暂停功能" << std::endl;
-        kpause();
+        KPause();
         kout << "  暂停结束, 继续执行" << std::endl;
     }
 
@@ -187,6 +187,17 @@ int main()
             for(size_t i = 0; i < arr.Size(); i++)
                 kout << "  array[" << i << "] = " << arr[i].Big().ToStr() << std::endl;
         }
+    }
+
+    // ==================== 12. 迷宫读取 + 打印 ====================
+    SECTION("12. 迷宫读取 + 打印");
+    {
+        kout << "  Reading maze from config/test/maze.kson..." << std::endl;
+        auto maze = ReadMaze("config/test/maze.kson", "small");
+        kout << "  Maze size: " << maze.size() << " rows x "
+             << (maze.empty() ? 0 : maze[0].size()) << " cols" << std::endl;
+        kout << "  Rendering (red=wall, green=start, blue=end):" << std::endl;
+        PrintMaze(maze);
     }
 
     // ==================== 完成 ====================

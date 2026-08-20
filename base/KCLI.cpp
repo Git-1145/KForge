@@ -110,6 +110,7 @@ namespace KF
                 {"magenta",      KLOGGER::Color::Magenta},
                 {"cyan",         KLOGGER::Color::Cyan},
                 {"lightyellow",  KLOGGER::Color::LightYellow},
+                {"lightgray",    KLOGGER::Color::LightGray},
                 // 样式
                 {"bold",         "\033[1m"},
                 {"dim",          "\033[2m"},
@@ -342,7 +343,7 @@ namespace KF
             }
         }
 
-        void kpause()
+        void KPause()
         {
             std::cout << "\n" << Color::SkyBlue << "按任意键继续..." << Color::Reset << std::flush;
             system("pause >nul");
@@ -351,8 +352,37 @@ namespace KF
 
         void KEnd()
         {
-            kpause();
+            KPause();
             exit(0);
+        }
+        ////////////////////////////杂函数//////////////////////////////
+        constexpr char Wall = 'W';
+        constexpr char Passable = 'P';
+        constexpr char Start = 'S';
+        constexpr char End = 'E';
+        constexpr char Visited = 'V';
+        constexpr char Path = 'L';
+        void PrintMaze(const std::vector<std::vector<MazeCell>>& maze)
+        {
+            std::string out;
+            out.reserve(maze.size() * (maze[0].size() * 12 + 1));
+            for (const auto& row : maze)
+            {
+                for (auto cell : row)
+                {
+                    switch (cell)
+                    {
+                        case MazeCell::WALL:     out += Color::Gray;      out += Wall;    out += Color::Reset; break;
+                        case MazeCell::PASSABLE: out += Color::LightGray; out += Passable; out += Color::Reset; break;
+                        case MazeCell::START:    out += Color::Bold; out += Color::Green;  out += Start; out += Color::Reset; break;
+                        case MazeCell::END:      out += Color::Bold; out += Color::Blue;   out += End;   out += Color::Reset; break;
+                        case MazeCell::VISITED:  out += Color::Yellow; out += Visited; out += Color::Reset; break;
+                        case MazeCell::PATH:     out += Color::Bold; out += Color::Blue; out += Path; out += Color::Reset; break;
+                    }
+                }
+                out += '\n';
+            }
+            std::cout << out;
         }
     }
 }

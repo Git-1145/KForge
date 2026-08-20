@@ -841,8 +841,6 @@ namespace KF
                         }
                         break;
                     case InString:
-                        // 字符串内容原样保留（含反斜杠），转义解释统一交给 ParseStr。
-                        // 这样 \" 不会误判为字符串结束，字符串内的 # 也不会误判为注释。
                         if(c == CHAR_ESCAPE1) //转义符：保留反斜杠，进入转义态以跳过下一字符的边界判定
                         {
                             state = InEscape;
@@ -862,8 +860,6 @@ namespace KF
                         }
                         break;
                     case InEscape:
-                        // 转义字符的下一字符原样写入（含 "），不在此处转换，
-                        // 保证字符串边界判定正确，转义解释由 ParseStr 统一负责
                         res[WriteIndex++] = c;
                         state = InString;
                         ReadIndex++;

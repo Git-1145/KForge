@@ -37,5 +37,19 @@
             },
             "time_complexity":"{skyblue}O(n){/}"
         }
+    },
+    "Searching":
+    {
+        "DFS":
+        {
+            "meta":
+            {
+                "cmdtitle": "深度优先搜索",
+                "title": "Depth-First Search",
+                "description": "Depth-First Search is a {yellow}graph traversal{skyblue} algorithm that explores as far as possible along each branch before backtracking. \nIt uses a stack to keep track of the nodes to be visited.",
+                "author": "ByeByeBite",
+                "date": "2026-08-20"
+            }
+        }
     }
 }
