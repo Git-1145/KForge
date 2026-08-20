@@ -4,6 +4,7 @@
 .trae/
 base/DEVLOG.md
 base/*.bat
+test/*.bat
 study/**/*.bat
 .vscode/
 base/KF.lib
